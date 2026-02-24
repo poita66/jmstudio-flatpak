@@ -1,4 +1,4 @@
-app-id: com.3dmakerpro.jmstudio
+app-id: io.github.poita66.jmstudio
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
@@ -29,7 +29,7 @@ modules:
     sources:
       - type: archive
         url: https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2
-        sha256: ffaa41d741a8a3bee244ac8e4ce72fbc4571aaa4b26f7b1f42571571e9571ed44  # TODO: verify
+        sha256: ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575
 
   - name: wine
     buildsystem: autotools
@@ -46,15 +46,15 @@ modules:
       - LDCONFIG=/bin/true
     sources:
       - type: git
-        url: https://github.com/TODO/wine.git  # TODO: your Wine fork URL
-        branch: working
+        url: https://github.com/poita66/wine.git
+        branch: test/all-prs
 
   - name: jmstudio
     buildsystem: simple
     build-commands:
       - install -Dm755 jmstudio.sh /app/bin/jmstudio.sh
-      - install -Dm644 com.3dmakerpro.jmstudio.desktop /app/share/applications/com.3dmakerpro.jmstudio.desktop
-      - install -Dm644 com.3dmakerpro.jmstudio.png /app/share/icons/hicolor/256x256/apps/com.3dmakerpro.jmstudio.png
+      - install -Dm644 io.github.poita66.jmstudio.desktop /app/share/applications/io.github.poita66.jmstudio.desktop
+      - install -Dm644 io.github.poita66.jmstudio.png /app/share/icons/hicolor/256x256/apps/io.github.poita66.jmstudio.png
       - mkdir -p /app/lib/i386-linux-gnu
     sources:
       - type: dir
