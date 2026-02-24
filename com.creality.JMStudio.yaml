@@ -1,0 +1,61 @@
+app-id: com.creality.JMStudio
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: jmstudio.sh
+
+finish-args:
+  - --device=all
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --share=network
+  - --allow=multiarch
+  - --env=WINEDEBUG=-all
+
+# Needed for 32-bit Wine components
+sdk-extensions:
+  - org.freedesktop.Sdk.Compat.i386
+  - org.freedesktop.Sdk.Extension.toolchain-i386
+
+add-extensions:
+  org.freedesktop.Platform.Compat.i386:
+    directory: lib/i386-linux-gnu
+    version: '24.08'
+
+modules:
+  - name: libusb
+    buildsystem: autotools
+    sources:
+      - type: archive
+        url: https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2
+        sha256: ffaa41d741a8a3bee244ac8e4ce72fbc4571aaa4b26f7b1f42571571e9571ed44  # TODO: verify
+
+  - name: wine
+    buildsystem: autotools
+    config-opts:
+      - --enable-win64
+      - --with-x
+      - --without-capi
+      - --without-gphoto
+      - --without-gstreamer
+      - --without-oss
+      - --without-sane
+      - --without-krb5
+    make-install-args:
+      - LDCONFIG=/bin/true
+    sources:
+      - type: git
+        url: https://github.com/TODO/wine.git  # TODO: your Wine fork URL
+        branch: working
+
+  - name: jmstudio
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 jmstudio.sh /app/bin/jmstudio.sh
+      - install -Dm644 com.creality.JMStudio.desktop /app/share/applications/com.creality.JMStudio.desktop
+      - install -Dm644 com.creality.JMStudio.png /app/share/icons/hicolor/256x256/apps/com.creality.JMStudio.png
+      - mkdir -p /app/lib/i386-linux-gnu
+    sources:
+      - type: dir
+        path: .
