@@ -1,4 +1,3 @@
-build-dir/
-.flatpak-builder/
-repo/
-*.flatpak
+build/
+wine-jmstudio/
+wine-jmstudio.tar.gz

@@ -1,7 +1,0 @@
-[Desktop Entry]
-Name=JM Studio
-Comment=3D Scanner Software
-Exec=jmstudio.sh
-Icon=io.github.poita66.jmstudio
-Type=Application
-Categories=Graphics;3DGraphics;Engineering;

@@ -1,0 +1,6 @@
+Name: JMStudio
+Runner: wine-jmstudio
+Arch: win64
+Windows: win10
+Environment_Variables:
+  WINEDEBUG: "-all"
