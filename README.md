@@ -1,6 +1,6 @@
 # JM Studio Flatpak
 
-Flatpak packaging for [JM Studio](https://www.creality.com/) (Creality 3D scanner software), running on Linux via a custom Wine build with USB and UVC camera support.
+Flatpak packaging for [JM Studio](https://www.3dmakerpro.com/) (3D scanner software), running on Linux via a custom Wine build with USB and UVC camera support.
 
 ## Custom Wine Patches
 
@@ -21,18 +21,18 @@ flatpak install flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.
 Build and install locally:
 
 ```bash
-flatpak-builder --user --install --force-clean build-dir com.creality.JMStudio.yaml
+flatpak-builder --user --install --force-clean build-dir com.3dmakerpro.jmstudio.yaml
 ```
 
 ## Running
 
 ```bash
-flatpak run com.creality.JMStudio
+flatpak run com.3dmakerpro.jmstudio
 ```
 
 ## USB Device Access
 
-Users need a udev rule granting access to the Creality scanner. Create `/etc/udev/rules.d/99-creality-scanner.rules`:
+Users need a udev rule granting access to the scanner. Create `/etc/udev/rules.d/99-3dscanner.rules`:
 
 ```
 SUBSYSTEM=="usb", ATTR{idVendor}=="1d6b", MODE="0666"
@@ -47,4 +47,4 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ## License
 
 The Wine patches are licensed under LGPL-2.1+, consistent with upstream Wine.
-JM Studio is proprietary software by Creality.
+JM Studio is proprietary software by 3DMakerPro.

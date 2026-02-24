@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=JM Studio
-Comment=Creality 3D Scanner Software
+Comment=3D Scanner Software
 Exec=jmstudio.sh
-Icon=com.creality.JMStudio
+Icon=com.3dmakerpro.jmstudio
 Type=Application
 Categories=Graphics;3DGraphics;Engineering;

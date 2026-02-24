@@ -1,4 +1,4 @@
-app-id: com.creality.JMStudio
+app-id: com.3dmakerpro.jmstudio
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
@@ -53,8 +53,8 @@ modules:
     buildsystem: simple
     build-commands:
       - install -Dm755 jmstudio.sh /app/bin/jmstudio.sh
-      - install -Dm644 com.creality.JMStudio.desktop /app/share/applications/com.creality.JMStudio.desktop
-      - install -Dm644 com.creality.JMStudio.png /app/share/icons/hicolor/256x256/apps/com.creality.JMStudio.png
+      - install -Dm644 com.3dmakerpro.jmstudio.desktop /app/share/applications/com.3dmakerpro.jmstudio.desktop
+      - install -Dm644 com.3dmakerpro.jmstudio.png /app/share/icons/hicolor/256x256/apps/com.3dmakerpro.jmstudio.png
       - mkdir -p /app/lib/i386-linux-gnu
     sources:
       - type: dir
