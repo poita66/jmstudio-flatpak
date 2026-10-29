@@ -27,8 +27,11 @@ decompilation of the shipped DLLs, **[inferred]** not yet confirmed on the wire.
 - `setBrightLevel(level)` maps the level (1-9) through a per-camera table to
   (exposure, gain) and calls `VideoCapture::set(CAP_PROP_EXPOSURE=15, e)` and
   `set(CAP_PROP_GAIN=14, g)`. Exposure is DirectShow log2 seconds; the Wine qcap patch converts it
-  to V4L2 `exposure_time_absolute` in 100 µs units (`round(2^e * 10000)`), so on the wire it should be
-  UVC CT `EXPOSURE_TIME_ABSOLUTE` (unit 1) and PU `GAIN` (unit 2) **[inferred]**.
+  to V4L2 `exposure_time_absolute` in 100 µs units (`round(2^e * 10000)`). On the wire this is
+  SET_CUR CT `EXPOSURE_TIME_ABSOLUTE` (unit 1, selector 4, u32 LE) then PU `GAIN` (unit 2,
+  selector 4, u16 LE). **[usb]** Brightness 1→2→3→4→5→6→5 on CameraA (2026-10-29 22:13:27) sent
+  exactly table A's values; level 5 on both cameras at scan start sent 20/30 to each (tables agree).
+- The Sensitivity slider produced no USB traffic **[usb]**; it appears to be a host-side parameter.
 
 | Level | A exposure | A gain | B exposure | B gain | V4L2 exposure (100 µs) |
 |---|---|---|---|---|---|
@@ -44,6 +47,25 @@ decompilation of the shipped DLLs, **[inferred]** not yet confirmed on the wire.
 
 Table A is at `JMDeviceCore.dll` 0x18001e4a0 (installed for CameraA in `init`). Table B at
 0x18001e590 is assumed to be CameraB's; its install site was not traced.
+
+### Scan start / stop (Texture SLAM mode) **[usb]**, 2026-10-29 22:27
+
+The complete control sequence for a hand scan, both cameras, nothing else on the bus:
+
+1. CameraA `SET_INTERFACE` VS iface 1 alt 0 (stop preview).
+2. CameraA VS PROBE: SET_CUR `01 00 | 01 | 02 | 40 42 0f 00 | 0…` (bmHint=1, format 1 = MJPEG,
+   frame 2 = 1280x720, interval 1 000 000 x 100 ns = 10 fps); GET_MIN/GET_MAX/SET_CUR/GET_CUR,
+   device answers wDelay 32, dwMaxVideoFrameSize 1 843 200, dwMaxPayloadTransferSize 0x600.
+   VS COMMIT with the negotiated block, then `SET_INTERFACE` alt 4.
+3. CameraB: identical probe/commit, alt 4.
+4. Exposure 20 / gain 30 (brightness 5) to CameraA, then CameraB.
+5. Scan runs (~7 s, 51 frames) with **no control traffic at all**.
+6. Stop: `SET_INTERFACE` alt 0 on both; JM Studio closes both devices on switching to Edit mode.
+
+No XU command, no vendor request and no other device is involved in starting a scan, so the
+structured-light projector is not switched by the host; it is presumably driven by the camera
+firmware whenever streaming runs **[inferred]**. To run the scanner natively it should be enough to
+open both UVC nodes at 1280x720 MJPEG 10 fps and set exposure/gain.
 
 ### Extension Unit tunnel (HCamera_x64.dll) **[static]**
 
@@ -78,9 +100,17 @@ answers is not yet known.
 - Another process using the cameras (e.g. `v4l2-ctl` tests) shows up as VS PROBE/COMMIT and
   SET_INTERFACE on the same device; check fd holders before attributing traffic to JM Studio.
 
+### Driving the GUI
+
+`ydotool` moves the pointer (after `mousemove -a -x 0 -y 0`, one relative unit = 2 logical px at
+scale 1.5, i.e. 3 X-root px) but its clicks never reached the Wine window. XWayland ignores XTEST
+motion, and XTEST button presses at a `ydotool`-placed pointer also produced no effect. Clicks by
+hand were the only working route on 2026-10-29.
+
 ### Open items
 
-- Confirm on the wire: brightness change → CT exposure + PU gain values above.
-- Capture a JM Studio start (serial read path, XU vs Sonix) and a SLAM-mode switch.
-- What starts the structured-light projector during a scan (no XU write and no light control in the
-  Lizard class; possibly firmware-driven when streaming starts).
+- Capture a JM Studio start to see the serial read path (XU flash 0xFE00 vs Sonix 0x1F100).
+- Whether a SLAM-mode switch alone touches the cameras, or only takes effect at scan start
+  (the Texture switch and the scan were not separable in the 22:27 capture).
+- Confirm the projector is firmware-driven: stream both cameras natively (e.g. `v4l2-ctl`) with
+  JM Studio closed and look at the image for the projected pattern.
