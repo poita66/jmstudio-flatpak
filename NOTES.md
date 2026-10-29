@@ -118,6 +118,8 @@ answers is not yet known.
 
 ### Capture tooling
 
+- `tools/usbmon_ctl.py` logs control/interrupt URBs; `tools/usbmon_iso.py` logs iso packet
+  statuses. Both read `/dev/usbmonN` with `MON_IOCX_GETX`.
 - usbmon: user is in `plugdev`, `/dev/usbmon*` is `root:plugdev 0660` (from `~/tmp/setup-tracing.sh`,
   revert with `--revert`). A passive reader that keeps only control/interrupt URBs for given VID:PIDs
   (iso counted, not stored) avoids ring-buffer drops at 2x isochronous video.
@@ -177,8 +179,9 @@ Observed while testing **[usb]**, 2026-10-29:
 Symptom **[user]**: lines across the camera preview under Wine (vertical in hand-held mode, as the
 image is rotated), absent on Windows.
 
-Cause, from usbmon iso statuses (`/tmp` reader that logs per-packet status and UVC payload header
-flags) captured while `tools/lizard_capture.py` streamed:
+Cause, from usbmon iso statuses (`tools/usbmon_iso.py BUS OUT.jsonl SECONDS VID:PID...` logs each
+completed iso URB's packet statuses and UVC payload header flags) captured while
+`tools/lizard_capture.py` streamed:
 - The frames are MJPEG 4:2:2 (MCU 16x8) with a restart interval (DRI) of 80 MCUs, which is
   exactly one 8 px MCU row: 90 intervals and 89 RST markers per 1280x720 frame.
 - Some isochronous packets complete with `-EPROTO` (-71, a USB transaction error). 6 s, both
