@@ -174,7 +174,7 @@ Observed while testing **[usb]**, 2026-10-29:
 - The two cameras free-run: nearest A/B timestamp skew drifted between 22 and 78 ms over 50 frames,
   so pairing is by nearest timestamp, not by hardware sync **[inferred]**.
 
-### Stripe artefacts (Linux/Wine only) **[usb]**, 2026-10-29
+### Stripe artefacts (one USB port only) **[usb]**, 2026-10-29
 
 Symptom **[user]**: lines across the camera preview under Wine (vertical in hand-held mode, as the
 image is rotated), absent on Windows.
@@ -204,10 +204,13 @@ Path to the cameras: AMD xHCI `c4:00.3` (bus 1) -> Genesys Logic `05e3:0610` hub
 `1a40:0101` hub (1-2.3, presumably inside the scanner) -> CameraA 1-2.3.1, CameraB 1-2.3.2, all
 480 Mbit/s. CameraA streams on alt setting 4 (2x768 bytes per microframe).
 
-Not yet known why Windows shows no stripes. Either its USB path has no transaction errors
-(different host controller, port or hub), or its driver stack drops damaged frames (which would
-show as a lower frame rate instead). Next test: plug the scanner straight into a laptop port,
-bypassing the Genesys hub, and compare `lost_intervals` from `tools/lizard_capture.py`.
+Port test, same capture (texture mode, 6 s) after the user moved the scanner to another port on
+the Framework 16: path is now AMD xHCI `c4:00.3` -> root port 1-1 -> `1a40:0101` -> cameras, with
+no Genesys hub. Result: no `-EPROTO` at all (only the harmless idle `-EXDEV`), 0 of 122 frames
+flagged, 0 restart intervals lost. So the errors come from the old port's path through the Genesys
+Logic `05e3:0610` hub (or that port's wiring), not from the scanner, uvcvideo or Wine. Use a port
+that connects the scanner without that hub. Windows was presumably clean because its USB path
+differed; not checked.
 
 ### Driving the GUI
 
@@ -221,4 +224,3 @@ hand were the only working route on 2026-10-29.
 - Meaning of the `calib.txt` fields beyond the image size, and of the 136-entry table.
 - Why CameraA did not get a gain SET_CUR at the 22:33 stream start.
 - Whether the projector also runs when no camera is streaming.
-- Source of the `-EPROTO` iso packet errors behind the stripe artefacts, and why Windows is clean.
