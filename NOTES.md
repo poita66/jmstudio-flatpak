@@ -151,6 +151,26 @@ A copy as downloaded on 2026-10-29 is in `calibration/calib_CRSLnnnnnnn.txt` (SH
 (fx fy cx cy k1 k2 p1 p2 k3 ...), one per optical element (CameraA, CameraB, and a third with
 anisotropic focal length, plausibly the projector), then a count (136) and an indexed table.
 
+### Native capture: `tools/lizard_capture.py`
+
+Stdlib-only Python (raw V4L2 ioctls, no Wine, no JM Studio) that reproduces JM Studio's camera
+setup: finds both capture nodes by VID:PID, sets MJPEG 1280x720 at 10 fps, manual exposure plus the
+brightness table, optionally reads the serial through the XU, and streams one or both cameras
+(`--mode geometry|texture`). Writes `A/*.jpg`, `B/*.jpg`, `frames.csv` (driver CLOCK_MONOTONIC
+timestamps for pairing) and `meta.json`.
+
+```bash
+tools/lizard_capture.py out/scan1 --mode texture --brightness 5 --seconds 10
+```
+
+Observed while testing **[usb]**, 2026-10-29:
+- Power-on control defaults are exposure 60, gain 16, so the script always sets both.
+- uvcvideo sets `V4L2_BUF_FLAG_ERROR` on ~70% of frames from both cameras, but 42 of 44 flagged
+  frames decoded fully; the two failures were the first frame after STREAMON. The script records the
+  flag (`driver_error` column) and drops only frames without JPEG SOI/EOI markers.
+- The two cameras free-run: nearest A/B timestamp skew drifted between 22 and 78 ms over 50 frames,
+  so pairing is by nearest timestamp, not by hardware sync **[inferred]**.
+
 ### Driving the GUI
 
 `ydotool` moves the pointer (after `mousemove -a -x 0 -y 0`, one relative unit = 2 logical px at
