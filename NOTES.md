@@ -48,9 +48,20 @@ decompilation of the shipped DLLs, **[inferred]** not yet confirmed on the wire.
 Table A is at `JMDeviceCore.dll` 0x18001e4a0 (installed for CameraA in `init`). Table B at
 0x18001e590 is assumed to be CameraB's; its install site was not traced.
 
-### Scan start / stop (Texture SLAM mode) **[usb]**, 2026-10-29 22:27
+### SLAM switch and scan (Texture SLAM mode) **[usb]**, 2026-10-29 22:27
 
-The complete control sequence for a hand scan, both cameras, nothing else on the bus:
+Timed against JM Studio's own log (`C:\users\peter\AppData\Roaming\Jimuyida\JMStudio\log\JMStudio_YYYYMMDD.log`,
+millisecond timestamps, records UI clicks and mode changes; use it to align captures):
+
+| Time | JM Studio log | USB |
+|---|---|---|
+| 22:27:07.154 | `CameraScanModeChanged: Geometry → Texture` | 07.307-07.945: steps 1-4 below |
+| 22:27:09.047 | `ButtonBox clicked: Scan`, `Start record...` | nothing |
+| 22:27:14.147 | `ButtonBox clicked: Scan` (stop), `End record...5 secs` | 14.315/14.347: step 6 |
+| 22:27:14.995 | `Switch to Edit mode` | devices closed |
+
+The SLAM-mode switch is what reconfigures the cameras (Texture adds CameraB). Starting and running a
+scan sends no control traffic; recording is host-side processing of frames already streaming.
 
 1. CameraA `SET_INTERFACE` VS iface 1 alt 0 (stop preview).
 2. CameraA VS PROBE: SET_CUR `01 00 | 01 | 02 | 40 42 0f 00 | 0…` (bmHint=1, format 1 = MJPEG,
@@ -59,8 +70,8 @@ The complete control sequence for a hand scan, both cameras, nothing else on the
    VS COMMIT with the negotiated block, then `SET_INTERFACE` alt 4.
 3. CameraB: identical probe/commit, alt 4.
 4. Exposure 20 / gain 30 (brightness 5) to CameraA, then CameraB.
-5. Scan runs (~7 s, 51 frames) with **no control traffic at all**.
-6. Stop: `SET_INTERFACE` alt 0 on both; JM Studio closes both devices on switching to Edit mode.
+5. Scan click, recording (5 s, 51 frames): **no control traffic at all**.
+6. Scan stop: `SET_INTERFACE` alt 0 on both; JM Studio closes both devices on switching to Edit mode.
 
 No XU command, no vendor request and no other device is involved in starting a scan, so the
 structured-light projector is not switched by the host; it is presumably driven by the camera
@@ -110,7 +121,5 @@ hand were the only working route on 2026-10-29.
 ### Open items
 
 - Capture a JM Studio start to see the serial read path (XU flash 0xFE00 vs Sonix 0x1F100).
-- Whether a SLAM-mode switch alone touches the cameras, or only takes effect at scan start
-  (the Texture switch and the scan were not separable in the 22:27 capture).
 - Confirm the projector is firmware-driven: stream both cameras natively (e.g. `v4l2-ctl`) with
   JM Studio closed and look at the image for the projected pattern.
