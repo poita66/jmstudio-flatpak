@@ -144,6 +144,8 @@ answers is not yet known.
 4. Both cameras: probe/commit 1280x720 MJPEG 10 fps, alt 4, exposure 20 to both, gain 30 sent
    only to CameraB (why CameraA's gain SET was skipped is not known).
 
+A copy as downloaded on 2026-10-29 is in `calibration/calib_CRSLnnnnnnn.txt` (SHA-256 `ac509f17fc689d8ad17ea7cb35f2ca39dd8cbe857c658ca6891de73dcd3ffc6a`, mixed CRLF/CR line endings kept via `.gitattributes`).
+
 `calib.txt` layout (first lines; field meanings are **[inferred]**): `1280 720`, `9.1 5.2`,
 `138 140`, `0 -53`, then three rows of 15 floats that look like pinhole intrinsics plus distortion
 (fx fy cx cy k1 k2 p1 p2 k3 ...), one per optical element (CameraA, CameraB, and a third with
