@@ -165,11 +165,46 @@ tools/lizard_capture.py out/scan1 --mode texture --brightness 5 --seconds 10
 
 Observed while testing **[usb]**, 2026-10-29:
 - Power-on control defaults are exposure 60, gain 16, so the script always sets both.
-- uvcvideo sets `V4L2_BUF_FLAG_ERROR` on ~70% of frames from both cameras, but 42 of 44 flagged
-  frames decoded fully; the two failures were the first frame after STREAMON. The script records the
-  flag (`driver_error` column) and drops only frames without JPEG SOI/EOI markers.
+- uvcvideo sets `V4L2_BUF_FLAG_ERROR` on ~70% of frames from both cameras. Flagged frames still
+  decode without a fatal error, but most carry grey stripes (see "Stripe artefacts" below). The
+  script records the flag (`driver_error`) and the number of missing restart intervals
+  (`lost_intervals`, 0 on a clean frame), and drops only frames without JPEG SOI/EOI markers.
 - The two cameras free-run: nearest A/B timestamp skew drifted between 22 and 78 ms over 50 frames,
   so pairing is by nearest timestamp, not by hardware sync **[inferred]**.
+
+### Stripe artefacts (Linux/Wine only) **[usb]**, 2026-10-29
+
+Symptom **[user]**: lines across the camera preview under Wine (vertical in hand-held mode, as the
+image is rotated), absent on Windows.
+
+Cause, from usbmon iso statuses (`/tmp` reader that logs per-packet status and UVC payload header
+flags) captured while `tools/lizard_capture.py` streamed:
+- The frames are MJPEG 4:2:2 (MCU 16x8) with a restart interval (DRI) of 80 MCUs, which is
+  exactly one 8 px MCU row: 90 intervals and 89 RST markers per 1280x720 frame.
+- Some isochronous packets complete with `-EPROTO` (-71, a USB transaction error). 6 s, both
+  cameras: CameraA 101 of ~50 000 packets, CameraB 70; plus ~150 `-EXDEV` (-18) each, all in the
+  idle header-only packets between frames, so harmless.
+- Every frame with an `-EPROTO` packet inside its data burst is exactly a frame uvcvideo flags with
+  `V4L2_BUF_FLAG_ERROR` (CameraA 47 of 62). The camera itself never sets the ERR bit in its payload
+  headers, so the data is lost on the bus, not in the camera.
+- A lost packet (up to 1536 bytes, about one MCU row of data) removes one or more restart
+  intervals. Every frame missing RST markers is flagged; no unflagged frame misses any. The decoder
+  resyncs at the next marker and paints the missing rows grey: an 8 px full-width band per lost
+  interval (checked with Pillow/libjpeg-turbo). Typically 0-3 bands per frame, at most 5 seen.
+- Same rate with CameraA alone (90 `-EPROTO` in 6 s, 44 of 55 frames flagged), so it is not
+  bandwidth contention between the two cameras.
+- `uvcvideo` parameter `nodrop=1` (the default here), so the driver passes damaged frames on.
+  Wine's qcap reads frames through `read()` as BGR24 (`dlls/qcap/v4l.c`), so libv4l2/libv4lconvert
+  decodes the MJPEG and nothing on that path drops flagged frames **[static]**.
+
+Path to the cameras: AMD xHCI `c4:00.3` (bus 1) -> Genesys Logic `05e3:0610` hub (port 1-2) ->
+`1a40:0101` hub (1-2.3, presumably inside the scanner) -> CameraA 1-2.3.1, CameraB 1-2.3.2, all
+480 Mbit/s. CameraA streams on alt setting 4 (2x768 bytes per microframe).
+
+Not yet known why Windows shows no stripes. Either its USB path has no transaction errors
+(different host controller, port or hub), or its driver stack drops damaged frames (which would
+show as a lower frame rate instead). Next test: plug the scanner straight into a laptop port,
+bypassing the Genesys hub, and compare `lost_intervals` from `tools/lizard_capture.py`.
 
 ### Driving the GUI
 
@@ -183,3 +218,4 @@ hand were the only working route on 2026-10-29.
 - Meaning of the `calib.txt` fields beyond the image size, and of the 136-entry table.
 - Why CameraA did not get a gain SET_CUR at the 22:33 stream start.
 - Whether the projector also runs when no camera is streaming.
+- Source of the `-EPROTO` iso packet errors behind the stripe artefacts, and why Windows is clean.

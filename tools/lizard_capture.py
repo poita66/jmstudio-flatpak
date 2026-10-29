@@ -12,7 +12,8 @@ Replicates what JM Studio sends on the wire (see NOTES.md):
     read-only request JM Studio sends at every start; --no-serial skips it.
 
 Output: OUT/A/NNNNNN.jpg, OUT/B/NNNNNN.jpg, OUT/frames.csv (one row per frame,
-with the driver's CLOCK_MONOTONIC buffer timestamp for pairing A/B), OUT/meta.json.
+with the driver's CLOCK_MONOTONIC buffer timestamp for pairing A/B, and lost_intervals,
+the JPEG restart intervals missing from the frame), OUT/meta.json.
 
 Close JM Studio (or switch it to Edit mode) first; the cameras allow one streamer.
 
@@ -28,6 +29,7 @@ import glob
 import json
 import mmap
 import os
+import re
 import select
 import struct
 import sys
@@ -119,6 +121,25 @@ def read_serial(fd):
     return raw[4:20].split(b"\0", 1)[0].decode("ascii", "replace"), raw[:0x14].hex()
 
 
+def lost_intervals(jpeg):
+    """Count restart intervals missing from an MJPEG frame (each is one 8 px MCU row here).
+
+    The cameras put a restart marker after every MCU row. A USB packet lost on the bus
+    removes the rows it carried, and decoders resync at the next marker and paint the gap
+    grey, which shows as a stripe across the image (see NOTES.md)."""
+    sof, dri, sos = jpeg.find(b"\xff\xc0"), jpeg.find(b"\xff\xdd"), jpeg.find(b"\xff\xda")
+    if min(sof, dri, sos) < 0:
+        return None
+    height, width = struct.unpack_from(">HH", jpeg, sof + 5)
+    comps = jpeg[sof + 9]
+    hmax = max(jpeg[sof + 11 + 3 * i] >> 4 for i in range(comps))
+    vmax = max(jpeg[sof + 11 + 3 * i] & 15 for i in range(comps))
+    mcus = -(-width // (8 * hmax)) * -(-height // (8 * vmax))
+    interval = struct.unpack_from(">H", jpeg, dri + 4)[0]
+    markers = len(re.findall(rb"\xff[\xd0-\xd7]", jpeg[sos:]))
+    return -(-mcus // interval) - 1 - markers
+
+
 class Camera:
     def __init__(self, name, dev, exposure, gain):
         self.name, self.dev = name, dev
@@ -162,9 +183,10 @@ class Camera:
         """Return (sequence, monotonic seconds, jpeg bytes, complete, driver_error), or None.
 
         complete is False when the frame lacks the JPEG start or end marker (the first frame
-        after STREAMON is routinely cut short). driver_error is uvcvideo's V4L2_BUF_FLAG_ERROR:
-        these cameras raise it on most frames, but ~95% of flagged frames decode fully, so it
-        is recorded rather than used to drop frames (v4l2-ctl and JM Studio ignore it too)."""
+        after STREAMON is routinely cut short). driver_error is uvcvideo's V4L2_BUF_FLAG_ERROR,
+        set when an iso packet of the frame failed on the bus; such frames still decode, with
+        grey stripes where the lost packets were. It is recorded rather than used to drop
+        frames (v4l2-ctl and JM Studio under Wine ignore it too); see lost_intervals()."""
         b = bytearray(BUF.pack(0, BUF_TYPE_CAPTURE, 0, 0, 0, 0, 0, b"", 0, MEMORY_MMAP, 0, 0, 0, 0))
         try:
             fcntl.ioctl(self.fd, VIDIOC_DQBUF, b)
@@ -237,7 +259,7 @@ def main():
         deadline = time.monotonic() + args.seconds if args.seconds else None
         with open(args.out / "frames.csv", "w", newline="") as fh:
             rows = csv.writer(fh)
-            rows.writerow(["camera", "index", "sequence", "timestamp_monotonic", "bytes", "driver_error", "file"])
+            rows.writerow(["camera", "index", "sequence", "timestamp_monotonic", "bytes", "driver_error", "lost_intervals", "file"])
             by_fd = {c.fd: c for c in cams.values()}
             while True:
                 if deadline is not None and time.monotonic() >= deadline:
@@ -258,7 +280,7 @@ def main():
                         continue
                     name = f"{c.name}/{counts[c.name]:06d}.jpg"
                     (args.out / name).write_bytes(jpeg)
-                    rows.writerow([c.name, counts[c.name], seq, f"{ts:.6f}", len(jpeg), int(driver_error), name])
+                    rows.writerow([c.name, counts[c.name], seq, f"{ts:.6f}", len(jpeg), int(driver_error), lost_intervals(jpeg), name])
                     counts[c.name] += 1
         meta["frames"] = counts
         meta["dropped_incomplete"] = dropped
