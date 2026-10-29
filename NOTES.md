@@ -73,10 +73,25 @@ scan sends no control traffic; recording is host-side processing of frames alrea
 5. Scan click, recording (5 s, 51 frames): **no control traffic at all**.
 6. Scan stop: `SET_INTERFACE` alt 0 on both; JM Studio closes both devices on switching to Edit mode.
 
-No XU command, no vendor request and no other device is involved in starting a scan, so the
-structured-light projector is not switched by the host; it is presumably driven by the camera
-firmware whenever streaming runs **[inferred]**. To run the scanner natively it should be enough to
-open both UVC nodes at 1280x720 MJPEG 10 fps and set exposure/gain.
+No XU command, no vendor request and no other device is involved in starting a scan.
+
+### Projector check without JM Studio **[usb]**, 2026-10-29 22:31-22:33
+
+With JM Studio closed, plain `v4l2-ctl --set-fmt-video=width=1280,height=720,pixelformat=MJPG
+--set-parm=10 --stream-mmap` (no controls set; the cameras kept exposure 20 / gain 30). The wire
+carried only GET_STATUS, VS PROBE/COMMIT (byte-identical to JM Studio's) and SET_INTERFACE.
+
+- CameraA alone: dense static projected line pattern on the object, with hard projector shadows.
+  Frame-to-frame difference is flat at ~2.7 grey levels (noise), so the pattern is fixed, not
+  phase-stepped.
+- CameraB alone: evenly lit image, no projected pattern, only the object's own texture.
+- Both together: CameraA shows the pattern, CameraB still does not.
+
+So the structured-light projector needs no host command: it is on while CameraA streams (whether
+it is also on when idle was not checked). CameraB is the texture camera and does not see the
+pattern; a different spectral filter is the likely reason **[inferred]**. Running the scanner
+natively needs only the two UVC streams at 1280x720 MJPEG 10 fps plus exposure/gain, and the
+per-device calibration that JM Studio loads by serial (`Load Calib file successed! sn=...`).
 
 ### Extension Unit tunnel (HCamera_x64.dll) **[static]**
 
@@ -121,5 +136,4 @@ hand were the only working route on 2026-10-29.
 ### Open items
 
 - Capture a JM Studio start to see the serial read path (XU flash 0xFE00 vs Sonix 0x1F100).
-- Confirm the projector is firmware-driven: stream both cameras natively (e.g. `v4l2-ctl`) with
-  JM Studio closed and look at the image for the projected pattern.
+- Where the calibration that JM Studio loads by serial comes from (local file vs device flash).
