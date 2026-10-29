@@ -126,6 +126,29 @@ answers is not yet known.
 - Another process using the cameras (e.g. `v4l2-ctl` tests) shows up as VS PROBE/COMMIT and
   SET_INTERFACE on the same device; check fd holders before attributing traffic to JM Studio.
 
+### Startup: serial read and calibration **[usb]**, 2026-10-29 22:33
+
+1. GET_STATUS on both devices (22:33:42).
+2. CameraA serial read through the XU tunnel, exactly as predicted from `HCamera_x64.dll`, done
+   twice (22:33:44.928 and 22:33:48.519, the second logged as `Connect scanner successfully...`):
+   SET_CUR unit 4 sel 10 `02 c2 00 fe 14 00 00 00`, then three GET_CUR sel 11 returning
+   `00 00 00 10 | 43 52 53 4c nn nn nn nn nn nn nn 00 | ff ff ff ff | bb bb bb bb`, i.e. a 4-byte
+   header (0x10 = 16, probably the record length), `CRSLnnnnnnn\0`, erased flash, then `bb` filler
+   past the requested 0x14 bytes. The Sonix path (flash 0x1F100) was not used. CameraB's flash was
+   not read.
+3. Network, no USB (from the JM Studio log): `querySn` → status 3 (`Enabled`), `SendDeviceLog`
+   → HTTP 200, then the per-device calibration is written to
+   `download/calib_CRSLnnnnnnn.txt` and copied to `calib.txt` in the install dir (both 6780 bytes,
+   rewritten at 22:33:57). The calibration comes from the vendor's server by serial, not from the
+   scanner.
+4. Both cameras: probe/commit 1280x720 MJPEG 10 fps, alt 4, exposure 20 to both, gain 30 sent
+   only to CameraB (why CameraA's gain SET was skipped is not known).
+
+`calib.txt` layout (first lines; field meanings are **[inferred]**): `1280 720`, `9.1 5.2`,
+`138 140`, `0 -53`, then three rows of 15 floats that look like pinhole intrinsics plus distortion
+(fx fy cx cy k1 k2 p1 p2 k3 ...), one per optical element (CameraA, CameraB, and a third with
+anisotropic focal length, plausibly the projector), then a count (136) and an indexed table.
+
 ### Driving the GUI
 
 `ydotool` moves the pointer (after `mousemove -a -x 0 -y 0`, one relative unit = 2 logical px at
@@ -135,5 +158,6 @@ hand were the only working route on 2026-10-29.
 
 ### Open items
 
-- Capture a JM Studio start to see the serial read path (XU flash 0xFE00 vs Sonix 0x1F100).
-- Where the calibration that JM Studio loads by serial comes from (local file vs device flash).
+- Meaning of the `calib.txt` fields beyond the image size, and of the 136-entry table.
+- Why CameraA did not get a gain SET_CUR at the 22:33 stream start.
+- Whether the projector also runs when no camera is streaming.
