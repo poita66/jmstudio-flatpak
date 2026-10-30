@@ -118,6 +118,10 @@ answers is not yet known.
 
 ### Capture tooling
 
+- JM Studio's own logs from the retired installs are in `logs/`, account email replaced with
+  `<email>`: `logs/wine-11.3-host/` (2.6.10 on the host Wine build in `~/.wine-jmstudio`,
+  2026-10-29/30, the sessions these notes are timed against) and `logs/bottles/` (Bottles,
+  2026-02-24).
 - `tools/usbmon_ctl.py` logs control/interrupt URBs; `tools/usbmon_iso.py` logs iso packet
   statuses. Both read `/dev/usbmonN` with `MON_IOCX_GETX`.
 - usbmon: user is in `plugdev`, `/dev/usbmon*` is `root:plugdev 0660` (from `~/tmp/setup-tracing.sh`,
