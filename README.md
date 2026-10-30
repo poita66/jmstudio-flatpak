@@ -54,10 +54,19 @@ Then reload the rules and replug the scanner:
 sudo udevadm control --reload-rules
 ```
 
-## Build and install
+## Install
 
-There is no published build yet, so build it locally. You need `flatpak-builder` and the Flathub
-remote:
+Download `jmstudio-<version>.flatpak` from the
+[latest release](https://github.com/poita66/jmstudio-flatpak/releases/latest) and install it. The
+runtime and SDK extensions come from Flathub:
+
+```bash
+flatpak install --user jmstudio-v11.20-1.flatpak
+```
+
+### Build it yourself
+
+You need `flatpak-builder` and the Flathub remote:
 
 ```bash
 flatpak install --user flathub org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 \
@@ -81,6 +90,18 @@ The Wine prefix lives in `~/.var/app/io.github.poita66.jmstudio/data/prefix`. De
 folder starts over from the first run.
 
 ## Verifying the build
+
+Release bundles are built by the [Release workflow](.github/workflows/release.yml) on GitHub's
+runners from a signed tag, with every action and the builder image pinned. Each bundle has a
+build-provenance attestation that ties its sha256 to that workflow, this repository and the tagged
+commit:
+
+```bash
+gh attestation verify jmstudio-v11.20-1.flatpak --repo poita66/jmstudio-flatpak
+```
+
+Release tags are signed with an SSH key registered on the `poita66` GitHub account as a signing
+key, so GitHub shows them as Verified.
 
 Every input is pinned in [`io.github.poita66.jmstudio.yaml`](io.github.poita66.jmstudio.yaml) by
 sha256, and the only change to Wine is the patch files in this repository:
