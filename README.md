@@ -62,7 +62,7 @@ Download `jmstudio-<version>.flatpak` from the
 runtime and SDK extensions come from Flathub:
 
 ```bash
-flatpak install --user jmstudio-v11.20-1.flatpak
+flatpak install --user jmstudio-v11.20-2.flatpak
 ```
 
 ### Build it yourself
@@ -98,7 +98,7 @@ build-provenance attestation that ties its sha256 to that workflow, this reposit
 commit:
 
 ```bash
-gh attestation verify jmstudio-v11.20-1.flatpak --repo poita66/jmstudio-flatpak
+gh attestation verify jmstudio-v11.20-2.flatpak --repo poita66/jmstudio-flatpak
 ```
 
 Release tags are signed with an SSH key registered on the `poita66` GitHub account as a signing
