@@ -1,7 +1,7 @@
 From bc7b3deb7aa7c270207f985ebd68d65f72e8be19 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 18:19:15 +1100
-Subject: [PATCH 12/14] mf: Implement MFEnumDeviceSources() for video capture
+Subject: [PATCH 12/15] mf: Implement MFEnumDeviceSources() for video capture
  devices.
 
 Enumerate video capture devices at runtime via avicap32 instead of

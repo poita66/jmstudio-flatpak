@@ -1,7 +1,7 @@
 From 62ebead9e366d9727abc9e365e92865514c4243e Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Fri, 30 Oct 2026 11:44:58 +1100
-Subject: [PATCH 14/14] loader: Register wineusb0.sys as an auto-start driver
+Subject: [PATCH 14/15] loader: Register wineusb0.sys as an auto-start driver
  service.
 
 wineusb0.sys is a legacy (non-PnP) driver that creates its \\.\libusb0-NNNN

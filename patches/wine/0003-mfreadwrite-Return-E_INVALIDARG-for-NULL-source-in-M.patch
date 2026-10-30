@@ -1,7 +1,7 @@
 From d411ec08f80947b5d4b1fd39effec074d6b61116 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 15:06:41 +1100
-Subject: [PATCH 03/14] mfreadwrite: Return E_INVALIDARG for NULL source in
+Subject: [PATCH 03/15] mfreadwrite: Return E_INVALIDARG for NULL source in
  MFCreateSourceReaderFromMediaSource.
 
 Native returns E_INVALIDARG when called with a NULL media source pointer.

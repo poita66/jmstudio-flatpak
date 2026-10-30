@@ -14,7 +14,7 @@ preview, brightness, both SLAM modes and scanning work.
 - **Wine 11.20**, built from the upstream release tarball (signed by Alexandre Julliard) as a
   WoW64 build: one 64-bit build that also runs JM Studio's 32-bit installer, with no 32-bit
   runtime needed.
-- **14 patches** in [`patches/wine/`](patches/wine/), the complete difference from upstream
+- **15 patches** in [`patches/wine/`](patches/wine/), the complete difference from upstream
   Wine. They add what JM Studio needs to see and drive the scanner's cameras:
 
   | Patches | Change |
@@ -24,6 +24,7 @@ preview, brightness, both SLAM modes and scanning work.
   | 0007-0008 | avicap32, devenum: USB VID/PID in capture device names, as on Windows, so JM Studio recognises the scanner |
   | 0012-0013 | mf: `MFEnumDeviceSources()` for video capture devices |
   | 0009, 0014 | wineusb0.sys: a libusb-win32 compatibility driver for scanners that use libusb, registered as a service |
+  | 0015 | vcomp: the 64-bit dynamic-schedule functions (`_vcomp_for_dynamic_init_i8`/`_next_i8`) that JM Studio's texture mapping calls |
   | 0001-0003 | vcomp: the OpenMP runtime-schedule flag; mfreadwrite: reject a NULL media source |
 
 - **Wine Mono 11.3.0**, because parts of JM Studio are .NET (mixed-mode C++/CLI).

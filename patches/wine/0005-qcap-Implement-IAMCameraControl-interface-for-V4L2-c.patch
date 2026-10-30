@@ -1,7 +1,7 @@
 From 1d715896a1ab744689ef86b8287d14d3aec7883b Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 15:04:23 +1100
-Subject: [PATCH 05/14] qcap: Implement IAMCameraControl interface for V4L2
+Subject: [PATCH 05/15] qcap: Implement IAMCameraControl interface for V4L2
  capture devices.
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

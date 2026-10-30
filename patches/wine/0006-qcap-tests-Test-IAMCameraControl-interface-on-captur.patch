@@ -1,7 +1,7 @@
 From ba5a5ce3e7572746f80db4473c49f776f2d94db6 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 20:56:55 +1100
-Subject: [PATCH 06/14] qcap/tests: Test IAMCameraControl interface on capture
+Subject: [PATCH 06/15] qcap/tests: Test IAMCameraControl interface on capture
  filter.
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>

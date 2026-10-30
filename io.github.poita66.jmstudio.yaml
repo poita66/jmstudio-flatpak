@@ -67,6 +67,7 @@ modules:
           - patches/wine/0012-mf-Implement-MFEnumDeviceSources-for-video-capture-d.patch
           - patches/wine/0013-mf-tests-Test-MFEnumDeviceSources-with-video-capture.patch
           - patches/wine/0014-loader-Register-wineusb0.sys-as-an-auto-start-driver.patch
+          - patches/wine/0015-vcomp-Implement-_vcomp_for_dynamic_init_i8-and-_vcom.patch
 
   # .NET for Wine: JM Studio's HCamera_x64.dll is a mixed-mode (C++/CLI) assembly that
   # imports mscoree.dll. Wine 11.20 expects Wine Mono 11.3.0 (WINE_MONO_VERSION) and uses an

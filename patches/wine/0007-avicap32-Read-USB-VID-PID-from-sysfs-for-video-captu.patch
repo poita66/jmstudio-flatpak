@@ -1,7 +1,7 @@
 From 5302010c66f8b62c5723c14f9d98734ef12f2007 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 18:15:11 +1100
-Subject: [PATCH 07/14] avicap32: Read USB VID/PID from sysfs for video capture
+Subject: [PATCH 07/15] avicap32: Read USB VID/PID from sysfs for video capture
  devices.
 
 Add usb_vid and usb_pid fields to the device descriptor struct and

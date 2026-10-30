@@ -1,7 +1,7 @@
 From 1fa90ee8cdf579200044de68589965bcc2e68c0b Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 18:15:55 +1100
-Subject: [PATCH 08/14] devenum: Use USB device path format in video capture
+Subject: [PATCH 08/15] devenum: Use USB device path format in video capture
  moniker names.
 
 When a video capture device has a USB VID/PID, use the Windows-style

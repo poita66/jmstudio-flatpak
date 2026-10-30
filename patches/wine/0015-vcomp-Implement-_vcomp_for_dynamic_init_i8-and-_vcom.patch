@@ -1,0 +1,423 @@
+From ad4b86f2dd94593dc25796aa788fdc3d1b6eb3c9 Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Fri, 30 Oct 2026 17:10:42 +1100
+Subject: [PATCH 15/15] vcomp: Implement _vcomp_for_dynamic_init_i8 and
+ _vcomp_for_dynamic_next_i8.
+
+The 64-bit loop index variants of the dynamic schedule functions were stubs, so
+64-bit code using schedule(dynamic) or schedule(runtime) with a 64-bit index
+aborted. JM Studio's TextureMapping_release.dll calls them.
+
+The dynamic state is widened to 64 bits and shared with the 32-bit functions;
+those still compute their iteration count in 32 bits and truncate the bounds
+they return, so their wraparound behaviour is unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/vcomp/main.c           | 117 +++++++++++++++++++++++++++---------
+ dlls/vcomp/tests/vcomp.c    |  92 ++++++++++++++++++++++++++++
+ dlls/vcomp/vcomp.spec       |   4 +-
+ dlls/vcomp100/vcomp100.spec |   4 +-
+ dlls/vcomp110/vcomp110.spec |   4 +-
+ dlls/vcomp120/vcomp120.spec |   4 +-
+ dlls/vcomp140/vcomp140.spec |   4 +-
+ dlls/vcomp90/vcomp90.spec   |   4 +-
+ 8 files changed, 191 insertions(+), 42 deletions(-)
+
+diff --git a/dlls/vcomp/main.c b/dlls/vcomp/main.c
+index 06965728e6d..a3877700c02 100644
+--- a/dlls/vcomp/main.c
++++ b/dlls/vcomp/main.c
+@@ -82,8 +82,8 @@ struct vcomp_thread_data
+     /* dynamic */
+     unsigned int            dynamic;
+     unsigned int            dynamic_type;
+-    unsigned int            dynamic_begin;
+-    unsigned int            dynamic_end;
++    ULONG64                 dynamic_begin;
++    ULONG64                 dynamic_end;
+ };
+ 
+ struct vcomp_team_data
+@@ -114,11 +114,11 @@ struct vcomp_task_data
+ 
+     /* dynamic */
+     unsigned int            dynamic;
+-    unsigned int            dynamic_first;
+-    unsigned int            dynamic_last;
+-    unsigned int            dynamic_iterations;
+-    int                     dynamic_step;
+-    unsigned int            dynamic_chunksize;
++    ULONG64                 dynamic_first;
++    ULONG64                 dynamic_last;
++    ULONG64                 dynamic_iterations;
++    LONG64                  dynamic_step;
++    ULONG64                 dynamic_chunksize;
+ };
+ 
+ extern void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args);
+@@ -1271,10 +1271,14 @@ void CDECL _vcomp_for_static_end(void)
+     /* nothing to do here */
+ }
+ 
+-void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsigned int last,
+-                                   int step, unsigned int chunksize)
++/* Shared by the 32-bit and 64-bit dynamic schedule functions. The callers compute the
++ * iteration count in their own integer width and pass a step that is already negated for
++ * decrementing loops; the 32-bit next function truncates the bounds it returns, which keeps
++ * the original 32-bit wraparound behaviour. */
++static void for_dynamic_init(unsigned int flags, ULONG64 first, ULONG64 last, LONG64 step,
++                             ULONG64 chunksize, ULONG64 iterations)
+ {
+-    unsigned int iterations, per_thread, remaining;
++    ULONG64 per_thread, remaining;
+     struct vcomp_thread_data *thread_data = vcomp_init_thread_data();
+     struct vcomp_team_data *team_data = thread_data->team;
+     struct vcomp_task_data *task_data = thread_data->task;
+@@ -1282,22 +1286,6 @@ void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsig
+     int thread_num = thread_data->thread_num;
+     unsigned int type = flags & ~(VCOMP_DYNAMIC_FLAGS_INCREMENT | VCOMP_DYNAMIC_FLAGS_RUNTIME);
+ 
+-    TRACE("(%u, %u, %u, %d, %u)\n", flags, first, last, step, chunksize);
+-
+-    if (step <= 0)
+-    {
+-        thread_data->dynamic_type = 0;
+-        return;
+-    }
+-
+-    if (flags & VCOMP_DYNAMIC_FLAGS_INCREMENT)
+-        iterations = 1 + (last - first) / step;
+-    else
+-    {
+-        iterations = 1 + (first - last) / step;
+-        step *= -1;
+-    }
+-
+     if (type == VCOMP_DYNAMIC_FLAGS_STATIC)
+     {
+         per_thread = iterations / num_threads;
+@@ -1342,15 +1330,13 @@ void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsig
+     }
+ }
+ 
+-int CDECL _vcomp_for_dynamic_next(unsigned int *begin, unsigned int *end)
++static int for_dynamic_next(ULONG64 *begin, ULONG64 *end)
+ {
+     struct vcomp_thread_data *thread_data = vcomp_init_thread_data();
+     struct vcomp_task_data *task_data = thread_data->task;
+     struct vcomp_team_data *team_data = thread_data->team;
+     int num_threads = team_data ? team_data->num_threads : 1;
+ 
+-    TRACE("(%p, %p)\n", begin, end);
+-
+     if (thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_STATIC)
+     {
+         *begin = thread_data->dynamic_begin;
+@@ -1361,7 +1347,7 @@ int CDECL _vcomp_for_dynamic_next(unsigned int *begin, unsigned int *end)
+     else if (thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_CHUNKED ||
+              thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_GUIDED)
+     {
+-        unsigned int iterations = 0;
++        ULONG64 iterations = 0;
+         EnterCriticalSection(&vcomp_section);
+         if (thread_data->dynamic == task_data->dynamic &&
+             task_data->dynamic_iterations != 0)
+@@ -1386,6 +1372,77 @@ int CDECL _vcomp_for_dynamic_next(unsigned int *begin, unsigned int *end)
+     return 0;
+ }
+ 
++void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsigned int last,
++                                   int step, unsigned int chunksize)
++{
++    unsigned int iterations;
++
++    TRACE("(%u, %u, %u, %d, %u)\n", flags, first, last, step, chunksize);
++
++    if (step <= 0)
++    {
++        vcomp_init_thread_data()->dynamic_type = 0;
++        return;
++    }
++
++    if (flags & VCOMP_DYNAMIC_FLAGS_INCREMENT)
++        iterations = 1 + (last - first) / step;
++    else
++    {
++        iterations = 1 + (first - last) / step;
++        step *= -1;
++    }
++
++    for_dynamic_init(flags, first, last, step, chunksize, iterations);
++}
++
++void CDECL _vcomp_for_dynamic_init_i8(unsigned int flags, ULONG64 first, ULONG64 last,
++                                      LONG64 step, ULONG64 chunksize)
++{
++    ULONG64 iterations;
++
++    TRACE("(%u, %s, %s, %s, %s)\n", flags, wine_dbgstr_longlong(first), wine_dbgstr_longlong(last),
++          wine_dbgstr_longlong(step), wine_dbgstr_longlong(chunksize));
++
++    if (step <= 0)
++    {
++        vcomp_init_thread_data()->dynamic_type = 0;
++        return;
++    }
++
++    if (flags & VCOMP_DYNAMIC_FLAGS_INCREMENT)
++        iterations = 1 + (last - first) / step;
++    else
++    {
++        iterations = 1 + (first - last) / step;
++        step *= -1;
++    }
++
++    for_dynamic_init(flags, first, last, step, chunksize, iterations);
++}
++
++int CDECL _vcomp_for_dynamic_next(unsigned int *begin, unsigned int *end)
++{
++    ULONG64 begin64, end64;
++    int ret;
++
++    TRACE("(%p, %p)\n", begin, end);
++
++    if ((ret = for_dynamic_next(&begin64, &end64)))
++    {
++        *begin = begin64;
++        *end   = end64;
++    }
++    return ret;
++}
++
++int CDECL _vcomp_for_dynamic_next_i8(ULONG64 *begin, ULONG64 *end)
++{
++    TRACE("(%p, %p)\n", begin, end);
++
++    return for_dynamic_next(begin, end);
++}
++
+ int CDECL omp_in_parallel(void)
+ {
+     TRACE("()\n");
+diff --git a/dlls/vcomp/tests/vcomp.c b/dlls/vcomp/tests/vcomp.c
+index 2563f0c8727..a563689e42c 100644
+--- a/dlls/vcomp/tests/vcomp.c
++++ b/dlls/vcomp/tests/vcomp.c
+@@ -88,6 +88,9 @@ static void  (CDECL   *p_vcomp_flush)(void);
+ static void  (CDECL   *p_vcomp_for_dynamic_init)(unsigned int flags, unsigned int first, unsigned int last,
+                                                  int step, unsigned int chunksize);
+ static int   (CDECL   *p_vcomp_for_dynamic_next)(unsigned int *begin, unsigned int *end);
++static void  (CDECL   *p_vcomp_for_dynamic_init_i8)(unsigned int flags, ULONG64 first, ULONG64 last,
++                                                    LONG64 step, ULONG64 chunksize);
++static int   (CDECL   *p_vcomp_for_dynamic_next_i8)(ULONG64 *begin, ULONG64 *end);
+ static void  (CDECL   *p_vcomp_for_static_end)(void);
+ static void  (CDECL   *p_vcomp_for_static_init)(int first, int last, int step, int chunksize, unsigned int *loops,
+                                                 int *begin, int *end, int *next, int *lastchunk);
+@@ -331,6 +334,8 @@ static BOOL init_vcomp(void)
+     VCOMP_GET_PROC(_vcomp_flush);
+     VCOMP_GET_PROC(_vcomp_for_dynamic_init);
+     VCOMP_GET_PROC(_vcomp_for_dynamic_next);
++    VCOMP_GET_PROC(_vcomp_for_dynamic_init_i8);
++    VCOMP_GET_PROC(_vcomp_for_dynamic_next_i8);
+     VCOMP_GET_PROC(_vcomp_for_static_end);
+     VCOMP_GET_PROC(_vcomp_for_static_init);
+     VCOMP_GET_PROC(_vcomp_for_static_init_i8);
+@@ -1615,6 +1620,92 @@ static void CDECL for_dynamic_guided_cb(unsigned int flags, LONG *a, LONG *b, LO
+     }
+ }
+ 
++/* 64-bit bounds above 4G, so a 32-bit implementation would truncate them. */
++#define DYNAMIC_I8_BASE 0x100000000ull
++
++static void CDECL for_dynamic_chunked_i8_cb(LONG64 *a, LONG64 *b)
++{
++    ULONG64 begin, end;
++
++    p_vcomp_for_dynamic_init_i8(VCOMP_DYNAMIC_FLAGS_CHUNKED | VCOMP_DYNAMIC_FLAGS_INCREMENT,
++                                DYNAMIC_I8_BASE, DYNAMIC_I8_BASE + 1000, 7, 5);
++    while (p_vcomp_for_dynamic_next_i8(&begin, &end))
++    {
++        ok(begin >= DYNAMIC_I8_BASE, "got begin %s\n", wine_dbgstr_longlong(begin));
++        if (begin == DYNAMIC_I8_BASE + 980)
++            ok(end == DYNAMIC_I8_BASE + 1000, "got end %s\n", wine_dbgstr_longlong(end));
++        else
++            ok(begin + 28 == end, "got begin %s end %s\n", wine_dbgstr_longlong(begin),
++               wine_dbgstr_longlong(end));
++        InterlockedExchangeAdd64(a, begin - DYNAMIC_I8_BASE);
++    }
++
++    p_vcomp_for_dynamic_init_i8(VCOMP_DYNAMIC_FLAGS_CHUNKED, DYNAMIC_I8_BASE + 1000,
++                                DYNAMIC_I8_BASE, 7, 5);
++    while (p_vcomp_for_dynamic_next_i8(&begin, &end))
++    {
++        ok(begin >= DYNAMIC_I8_BASE, "got begin %s\n", wine_dbgstr_longlong(begin));
++        if (begin == DYNAMIC_I8_BASE + 20)
++            ok(end == DYNAMIC_I8_BASE, "got end %s\n", wine_dbgstr_longlong(end));
++        else
++            ok(begin - 28 == end, "got begin %s end %s\n", wine_dbgstr_longlong(begin),
++               wine_dbgstr_longlong(end));
++        InterlockedExchangeAdd64(b, begin - DYNAMIC_I8_BASE);
++    }
++}
++
++static void CDECL for_dynamic_static_i8_cb(void)
++{
++    ULONG64 begin, end;
++    int ret;
++
++    p_vcomp_for_dynamic_init_i8(VCOMP_DYNAMIC_FLAGS_STATIC | VCOMP_DYNAMIC_FLAGS_INCREMENT,
++                                DYNAMIC_I8_BASE, DYNAMIC_I8_BASE + 1000, 7, 1);
++    ret = p_vcomp_for_dynamic_next_i8(&begin, &end);
++    if (pomp_get_num_threads() == 1)
++    {
++        ok(ret == TRUE, "expected ret == TRUE, got %d\n", ret);
++        ok(begin == DYNAMIC_I8_BASE, "got begin %s\n", wine_dbgstr_longlong(begin));
++        ok(end == DYNAMIC_I8_BASE + 994, "got end %s\n", wine_dbgstr_longlong(end));
++    }
++    ret = p_vcomp_for_dynamic_next_i8(&begin, &end);
++    ok(ret == FALSE, "expected ret == FALSE, got %d\n", ret);
++}
++
++static void test_vcomp_for_dynamic_init_i8(void)
++{
++    LONG64 a, b;
++    int max_threads = pomp_get_max_threads();
++    int i;
++
++    if (!p_vcomp_for_dynamic_init_i8 || !p_vcomp_for_dynamic_next_i8)
++    {
++        win_skip("_vcomp_for_dynamic_init_i8 or _vcomp_for_dynamic_next_i8 not available\n");
++        return;
++    }
++
++    for_dynamic_static_i8_cb();
++
++    /* Sums of the chunk starts relative to the base: 0, 35, ..., 980 and 1000, 965, ..., 20. */
++    a = b = 0;
++    for_dynamic_chunked_i8_cb(&a, &b);
++    ok(a == 14210, "expected a == 14210, got %s\n", wine_dbgstr_longlong(a));
++    ok(b == 14790, "expected b == 14790, got %s\n", wine_dbgstr_longlong(b));
++
++    for (i = 1; i <= 4; i++)
++    {
++        pomp_set_num_threads(i);
++        p_vcomp_fork(TRUE, 0, for_dynamic_static_i8_cb);
++
++        a = b = 0;
++        p_vcomp_fork(TRUE, 2, for_dynamic_chunked_i8_cb, &a, &b);
++        ok(a == 14210, "expected a == 14210, got %s\n", wine_dbgstr_longlong(a));
++        ok(b == 14790, "expected b == 14790, got %s\n", wine_dbgstr_longlong(b));
++    }
++
++    pomp_set_num_threads(max_threads);
++}
++
+ static void test_vcomp_for_dynamic_init(void)
+ {
+     static const int guided_a[] = {0, 6041, 9072, 11179};
+@@ -2665,6 +2756,7 @@ START_TEST(vcomp)
+     test_vcomp_for_static_simple_init();
+     test_vcomp_for_static_init();
+     test_vcomp_for_dynamic_init();
++    test_vcomp_for_dynamic_init_i8();
+     test_vcomp_master_begin();
+     test_vcomp_single_begin();
+     test_vcomp_enter_critsect();
+diff --git a/dlls/vcomp/vcomp.spec b/dlls/vcomp/vcomp.spec
+index 1a981a6c6c1..4f027a5e011 100644
+--- a/dlls/vcomp/vcomp.spec
++++ b/dlls/vcomp/vcomp.spec
+@@ -56,9 +56,9 @@
+ @ cdecl _vcomp_enter_critsect(ptr)
+ @ cdecl _vcomp_flush()
+ @ cdecl _vcomp_for_dynamic_init(long long long long long)
+-@ stub _vcomp_for_dynamic_init_i8
++@ cdecl _vcomp_for_dynamic_init_i8(long int64 int64 int64 int64)
+ @ cdecl _vcomp_for_dynamic_next(ptr ptr)
+-@ stub _vcomp_for_dynamic_next_i8
++@ cdecl _vcomp_for_dynamic_next_i8(ptr ptr)
+ @ cdecl _vcomp_for_static_end()
+ @ cdecl _vcomp_for_static_init(long long long long ptr ptr ptr ptr ptr)
+ @ cdecl _vcomp_for_static_init_i8(int64 int64 int64 int64 ptr ptr ptr ptr ptr)
+diff --git a/dlls/vcomp100/vcomp100.spec b/dlls/vcomp100/vcomp100.spec
+index 1a981a6c6c1..4f027a5e011 100644
+--- a/dlls/vcomp100/vcomp100.spec
++++ b/dlls/vcomp100/vcomp100.spec
+@@ -56,9 +56,9 @@
+ @ cdecl _vcomp_enter_critsect(ptr)
+ @ cdecl _vcomp_flush()
+ @ cdecl _vcomp_for_dynamic_init(long long long long long)
+-@ stub _vcomp_for_dynamic_init_i8
++@ cdecl _vcomp_for_dynamic_init_i8(long int64 int64 int64 int64)
+ @ cdecl _vcomp_for_dynamic_next(ptr ptr)
+-@ stub _vcomp_for_dynamic_next_i8
++@ cdecl _vcomp_for_dynamic_next_i8(ptr ptr)
+ @ cdecl _vcomp_for_static_end()
+ @ cdecl _vcomp_for_static_init(long long long long ptr ptr ptr ptr ptr)
+ @ cdecl _vcomp_for_static_init_i8(int64 int64 int64 int64 ptr ptr ptr ptr ptr)
+diff --git a/dlls/vcomp110/vcomp110.spec b/dlls/vcomp110/vcomp110.spec
+index d39aeb1f347..382f7be87a0 100644
+--- a/dlls/vcomp110/vcomp110.spec
++++ b/dlls/vcomp110/vcomp110.spec
+@@ -57,9 +57,9 @@
+ @ cdecl _vcomp_enter_critsect(ptr)
+ @ cdecl _vcomp_flush()
+ @ cdecl _vcomp_for_dynamic_init(long long long long long)
+-@ stub _vcomp_for_dynamic_init_i8
++@ cdecl _vcomp_for_dynamic_init_i8(long int64 int64 int64 int64)
+ @ cdecl _vcomp_for_dynamic_next(ptr ptr)
+-@ stub _vcomp_for_dynamic_next_i8
++@ cdecl _vcomp_for_dynamic_next_i8(ptr ptr)
+ @ cdecl _vcomp_for_static_end()
+ @ cdecl _vcomp_for_static_init(long long long long ptr ptr ptr ptr ptr)
+ @ cdecl _vcomp_for_static_init_i8(int64 int64 int64 int64 ptr ptr ptr ptr ptr)
+diff --git a/dlls/vcomp120/vcomp120.spec b/dlls/vcomp120/vcomp120.spec
+index d39aeb1f347..382f7be87a0 100644
+--- a/dlls/vcomp120/vcomp120.spec
++++ b/dlls/vcomp120/vcomp120.spec
+@@ -57,9 +57,9 @@
+ @ cdecl _vcomp_enter_critsect(ptr)
+ @ cdecl _vcomp_flush()
+ @ cdecl _vcomp_for_dynamic_init(long long long long long)
+-@ stub _vcomp_for_dynamic_init_i8
++@ cdecl _vcomp_for_dynamic_init_i8(long int64 int64 int64 int64)
+ @ cdecl _vcomp_for_dynamic_next(ptr ptr)
+-@ stub _vcomp_for_dynamic_next_i8
++@ cdecl _vcomp_for_dynamic_next_i8(ptr ptr)
+ @ cdecl _vcomp_for_static_end()
+ @ cdecl _vcomp_for_static_init(long long long long ptr ptr ptr ptr ptr)
+ @ cdecl _vcomp_for_static_init_i8(int64 int64 int64 int64 ptr ptr ptr ptr ptr)
+diff --git a/dlls/vcomp140/vcomp140.spec b/dlls/vcomp140/vcomp140.spec
+index d39aeb1f347..382f7be87a0 100644
+--- a/dlls/vcomp140/vcomp140.spec
++++ b/dlls/vcomp140/vcomp140.spec
+@@ -57,9 +57,9 @@
+ @ cdecl _vcomp_enter_critsect(ptr)
+ @ cdecl _vcomp_flush()
+ @ cdecl _vcomp_for_dynamic_init(long long long long long)
+-@ stub _vcomp_for_dynamic_init_i8
++@ cdecl _vcomp_for_dynamic_init_i8(long int64 int64 int64 int64)
+ @ cdecl _vcomp_for_dynamic_next(ptr ptr)
+-@ stub _vcomp_for_dynamic_next_i8
++@ cdecl _vcomp_for_dynamic_next_i8(ptr ptr)
+ @ cdecl _vcomp_for_static_end()
+ @ cdecl _vcomp_for_static_init(long long long long ptr ptr ptr ptr ptr)
+ @ cdecl _vcomp_for_static_init_i8(int64 int64 int64 int64 ptr ptr ptr ptr ptr)
+diff --git a/dlls/vcomp90/vcomp90.spec b/dlls/vcomp90/vcomp90.spec
+index a751e0b3da4..2e55b31d5cf 100644
+--- a/dlls/vcomp90/vcomp90.spec
++++ b/dlls/vcomp90/vcomp90.spec
+@@ -56,9 +56,9 @@
+ @ cdecl _vcomp_enter_critsect(ptr) vcomp._vcomp_enter_critsect
+ @ cdecl _vcomp_flush() vcomp._vcomp_flush
+ @ cdecl _vcomp_for_dynamic_init(long long long long long) vcomp._vcomp_for_dynamic_init
+-@ stub _vcomp_for_dynamic_init_i8
++@ cdecl _vcomp_for_dynamic_init_i8(long int64 int64 int64 int64) vcomp._vcomp_for_dynamic_init_i8
+ @ cdecl _vcomp_for_dynamic_next(ptr ptr) vcomp._vcomp_for_dynamic_next
+-@ stub _vcomp_for_dynamic_next_i8
++@ cdecl _vcomp_for_dynamic_next_i8(ptr ptr) vcomp._vcomp_for_dynamic_next_i8
+ @ cdecl _vcomp_for_static_end() vcomp._vcomp_for_static_end
+ @ cdecl _vcomp_for_static_init(long long long long ptr ptr ptr ptr ptr) vcomp._vcomp_for_static_init
+ @ cdecl _vcomp_for_static_init_i8(int64 int64 int64 int64 ptr ptr ptr ptr ptr) vcomp._vcomp_for_static_init_i8

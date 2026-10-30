@@ -1,7 +1,7 @@
 From f50f732d4d9ca99af65dd0fbca55cb9e25578dbd Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 15:11:33 +1100
-Subject: [PATCH 10/14] qcap: Add IKsControl interface with UVC extension unit
+Subject: [PATCH 10/15] qcap: Add IKsControl interface with UVC extension unit
  passthrough.
 
 Implement IKsControl on the VFW capture filter, forwarding

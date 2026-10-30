@@ -1,7 +1,7 @@
 From 2fde9ae5a9ab5f4ea5d797169706d3229fafe854 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 10:45:58 +1100
-Subject: [PATCH 01/14] vcomp: Handle 0x20 (runtime) flag in
+Subject: [PATCH 01/15] vcomp: Handle 0x20 (runtime) flag in
  _vcomp_for_dynamic_init.
 
 MSVC's schedule(runtime) resolved to dynamic/chunked passes flags with

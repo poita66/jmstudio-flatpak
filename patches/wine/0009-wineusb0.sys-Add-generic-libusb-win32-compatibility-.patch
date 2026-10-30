@@ -1,7 +1,7 @@
 From e34ac56a2fcc11173886e70f7cb6b79cc80cb827 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 18:13:39 +1100
-Subject: [PATCH 09/14] wineusb0.sys: Add generic libusb-win32 compatibility
+Subject: [PATCH 09/15] wineusb0.sys: Add generic libusb-win32 compatibility
  driver.
 
 Bridge libusb-win32 (v1.2.6 ABI) IOCTLs to Linux libusb, allowing
