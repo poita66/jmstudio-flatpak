@@ -1,0 +1,82 @@
+# Build the Flatpak bundle from a tag and publish it as a GitHub release with a build-provenance
+# attestation, so anyone can check that a downloaded bundle was built here, by this workflow, from
+# that tag:
+#   gh attestation verify jmstudio-<tag>.flatpak --repo poita66/jmstudio-flatpak
+# Actions and the builder image are pinned by commit SHA / digest.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    container:
+      # ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions@sha256:c91a88269eee8fcdd73ecf43064232fbebe27411f926f63f38bdf70c51f2ceae
+      options: --privileged
+    env:
+      BUNDLE: jmstudio-${{ github.ref_name }}.flatpak
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: io.github.poita66.jmstudio.yaml
+          bundle: ${{ env.BUNDLE }}
+          cache-key: flatpak-builder-${{ hashFiles('io.github.poita66.jmstudio.yaml', 'patches/**') }}
+          upload-artifact: false
+
+      - name: Checksum
+        run: sha256sum "$BUNDLE" | tee SHA256SUMS
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ env.BUNDLE }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundle
+          path: |
+            ${{ env.BUNDLE }}
+            SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundle
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<EOF
+          Flatpak bundle of JM Studio's Wine runtime (Wine 11.20 plus the patches in
+          [\`patches/wine/\`](https://github.com/${GITHUB_REPOSITORY}/tree/${TAG}/patches/wine)).
+          JM Studio itself is not included; see the README for host setup and first run.
+
+          Install (the runtime comes from Flathub):
+
+              flatpak install --user jmstudio-${TAG}.flatpak
+
+          Verify that this file was built by this repository's Release workflow from \`${TAG}\`:
+
+              gh attestation verify jmstudio-${TAG}.flatpak --repo ${GITHUB_REPOSITORY}
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$TAG" --notes-file notes.md "jmstudio-${TAG}.flatpak" SHA256SUMS
