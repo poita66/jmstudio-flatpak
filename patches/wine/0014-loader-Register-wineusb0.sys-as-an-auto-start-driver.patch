@@ -1,0 +1,66 @@
+From 62ebead9e366d9727abc9e365e92865514c4243e Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Fri, 30 Oct 2026 11:44:58 +1100
+Subject: [PATCH 14/14] loader: Register wineusb0.sys as an auto-start driver
+ service.
+
+wineusb0.sys is a legacy (non-PnP) driver that creates its \\.\libusb0-NNNN
+devices from DriverEntry, so nothing loads it unless a service starts it.
+Without this, prefixes needed the service keys added by hand.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ loader/wine.inf.in | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/loader/wine.inf.in b/loader/wine.inf.in
+index c120aef4216..3fcb0cbf4d4 100644
+--- a/loader/wine.inf.in
++++ b/loader/wine.inf.in
+@@ -153,6 +153,7 @@ AddService=Winmgmt,0,WinmgmtService
+ AddService=wuauserv,0,wuauService
+ AddService=NDIS,0x800,NDISService
+ AddService=nsiproxy,0x800,NsiProxyService
++AddService=wineusb0,0,Wineusb0Service
+ 
+ [DefaultInstall.ntx86.Services]
+ AddService=BITS,0,BITSService
+@@ -174,6 +175,7 @@ AddService=Winmgmt,0,WinmgmtService
+ AddService=wuauserv,0,wuauService
+ AddService=NDIS,0x800,NDISService
+ AddService=nsiproxy,0x800,NsiProxyService
++AddService=wineusb0,0,Wineusb0Service
+ 
+ [DefaultInstall.ntamd64.Services]
+ AddService=BITS,0,BITSService
+@@ -195,6 +197,7 @@ AddService=Winmgmt,0,WinmgmtService
+ AddService=wuauserv,0,wuauService
+ AddService=NDIS,0x800,NDISService
+ AddService=nsiproxy,0x800,NsiProxyService
++AddService=wineusb0,0,Wineusb0Service
+ 
+ [DefaultInstall.ntarm64.Services]
+ AddService=BITS,0,BITSService
+@@ -216,6 +219,7 @@ AddService=Winmgmt,0,WinmgmtService
+ AddService=wuauserv,0,wuauService
+ AddService=NDIS,0x800,NDISService
+ AddService=nsiproxy,0x800,NsiProxyService
++AddService=wineusb0,0,Wineusb0Service
+ 
+ [Strings]
+ MciExtStr="Software\Microsoft\Windows NT\CurrentVersion\MCI Extensions"
+@@ -974,6 +978,14 @@ LoadOrderGroup="System Bus Extender"
+ [NsiProxyServiceKeys]
+ HKR,,"Tag",0x10001,1
+ 
++[Wineusb0Service]
++Description="Exposes USB devices to libusb-win32 applications"
++DisplayName="libusb-win32 compatibility driver"
++ServiceBinary="%12%\wineusb0.sys"
++ServiceType=1
++StartType=2
++ErrorControl=1
++
+ [RpcSsService]
+ Description="RPC service"
+ DisplayName="Remote Procedure Call (RPC)"

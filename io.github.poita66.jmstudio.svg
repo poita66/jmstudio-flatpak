@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Original icon for this package: a wireframe object swept by a scanner's light stripe. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3445"/>
+      <stop offset="1" stop-color="#151a24"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4fd1c5" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#4fd1c5"/>
+      <stop offset="1" stop-color="#4fd1c5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg)"/>
+  <!-- isometric cube -->
+  <g fill="none" stroke="#c9d3e3" stroke-width="3" stroke-linejoin="round">
+    <path d="M64 30 L94 47 L94 81 L64 98 L34 81 L34 47 Z"/>
+    <path d="M34 47 L64 64 L94 47 M64 64 L64 98"/>
+  </g>
+  <!-- point samples on the faces -->
+  <g fill="#c9d3e3" opacity="0.55">
+    <circle cx="49" cy="64" r="2"/><circle cx="49" cy="78" r="2"/>
+    <circle cx="79" cy="64" r="2"/><circle cx="79" cy="78" r="2"/>
+    <circle cx="64" cy="47" r="2"/>
+  </g>
+  <!-- light stripe -->
+  <rect x="18" y="69" width="92" height="4" rx="2" fill="url(#beam)"/>
+  <g fill="#4fd1c5">
+    <circle cx="34" cy="71" r="3"/><circle cx="64" cy="71" r="3"/><circle cx="94" cy="71" r="3"/>
+  </g>
+</svg>

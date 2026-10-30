@@ -30,6 +30,9 @@ modules:
       # installer is 32-bit), so no 32-bit runtime is needed.
       - --enable-archs=i386,x86_64
       - --disable-tests
+      # Windows-side (PE) code defaults to -g -O2; its DWARF info is ~1.6 GB, and Flatpak only
+      # strips the Unix-side ELF files.
+      - CROSSCFLAGS=-O2
       - --with-x
       - --without-capi
       - --without-gphoto
@@ -63,11 +66,7 @@ modules:
           - patches/wine/0011-qcap-tests-Test-IKsControl-interface-on-capture-filt.patch
           - patches/wine/0012-mf-Implement-MFEnumDeviceSources-for-video-capture-d.patch
           - patches/wine/0013-mf-tests-Test-MFEnumDeviceSources-with-video-capture.patch
-      # The patches touch configure.ac (new wineusb0.sys module) but not the generated
-      # configure script, so regenerate it from the patched configure.ac.
-      - type: shell
-        commands:
-          - autoconf
+          - patches/wine/0014-loader-Register-wineusb0.sys-as-an-auto-start-driver.patch
 
   # .NET for Wine: JM Studio's HCamera_x64.dll is a mixed-mode (C++/CLI) assembly that
   # imports mscoree.dll. Wine 11.20 expects Wine Mono 11.3.0 (WINE_MONO_VERSION) and uses an
@@ -88,11 +87,11 @@ modules:
     build-commands:
       - install -Dm755 jmstudio.sh /app/bin/jmstudio
       - install -Dm644 io.github.poita66.jmstudio.desktop /app/share/applications/io.github.poita66.jmstudio.desktop
-      - install -Dm644 io.github.poita66.jmstudio.png /app/share/icons/hicolor/256x256/apps/io.github.poita66.jmstudio.png
+      - install -Dm644 io.github.poita66.jmstudio.svg /app/share/icons/hicolor/scalable/apps/io.github.poita66.jmstudio.svg
     sources:
       - type: file
         path: jmstudio.sh
       - type: file
         path: io.github.poita66.jmstudio.desktop
       - type: file
-        path: io.github.poita66.jmstudio.png
+        path: io.github.poita66.jmstudio.svg

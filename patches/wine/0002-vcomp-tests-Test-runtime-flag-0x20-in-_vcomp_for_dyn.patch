@@ -1,7 +1,7 @@
 From d83519094642cd137424bc282175fcfa6a572bc1 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 20:58:53 +1100
-Subject: [PATCH 02/13] vcomp/tests: Test runtime flag (0x20) in
+Subject: [PATCH 02/14] vcomp/tests: Test runtime flag (0x20) in
  _vcomp_for_dynamic_init.
 
 The 0x20 flag is set by MSVC schedule(runtime) and should not alter

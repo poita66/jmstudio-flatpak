@@ -1,7 +1,7 @@
-From 26f1396306cfd742d109fbe8769d571d5e578100 Mon Sep 17 00:00:00 2001
+From e34ac56a2fcc11173886e70f7cb6b79cc80cb827 Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 18:13:39 +1100
-Subject: [PATCH 09/13] wineusb0.sys: Add generic libusb-win32 compatibility
+Subject: [PATCH 09/14] wineusb0.sys: Add generic libusb-win32 compatibility
  driver.
 
 Bridge libusb-win32 (v1.2.6 ABI) IOCTLs to Linux libusb, allowing
@@ -15,24 +15,61 @@ libusb handles to every USB device on the system.
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 (cherry picked from commit 41bfbb355f687c34cb8fe4c293d09650d91d40cd)
 ---
- configure.ac                  |   1 +
+ configure                     |   3 +
+ configure.ac                  |   2 +
  dlls/wineusb0.sys/Makefile.in |  12 +
  dlls/wineusb0.sys/unixlib.c   | 637 +++++++++++++++++++++++++++++
  dlls/wineusb0.sys/unixlib.h   | 272 +++++++++++++
  dlls/wineusb0.sys/wineusb0.c  | 748 ++++++++++++++++++++++++++++++++++
  dlls/wineusb0.sys/wineusb0.rc |  54 +++
- 6 files changed, 1724 insertions(+)
+ 7 files changed, 1728 insertions(+)
  create mode 100644 dlls/wineusb0.sys/Makefile.in
  create mode 100644 dlls/wineusb0.sys/unixlib.c
  create mode 100644 dlls/wineusb0.sys/unixlib.h
  create mode 100644 dlls/wineusb0.sys/wineusb0.c
  create mode 100644 dlls/wineusb0.sys/wineusb0.rc
 
+diff --git a/configure b/configure
+index e2065aef217..8d357b9613a 100755
+--- a/configure
++++ b/configure
+@@ -1628,6 +1628,7 @@ enable_wineps_drv
+ enable_wineps16_drv16
+ enable_winepulse_drv
+ enable_wineusb_sys
++enable_wineusb0_sys
+ enable_winevulkan
+ enable_winewayland_drv
+ enable_winex11_drv
+@@ -17536,6 +17537,7 @@ This is an error since --with-usb was requested." "$LINENO" 5 ;;
+ esac
+ enable_wineusb_sys=${enable_wineusb_sys:-no}
+ fi
++test "$ac_cv_func_libusb_interrupt_event_handler" = "yes" || enable_wineusb0_sys=${enable_wineusb0_sys:-no}
+ 
+ if test "x$with_v4l2" != "xno"
+ then
+@@ -22794,6 +22796,7 @@ wine_fn_config_makefile dlls/wineps.drv enable_wineps_drv
+ wine_fn_config_makefile dlls/wineps16.drv16 enable_wineps16_drv16
+ wine_fn_config_makefile dlls/winepulse.drv enable_winepulse_drv
+ wine_fn_config_makefile dlls/wineusb.sys enable_wineusb_sys
++wine_fn_config_makefile dlls/wineusb0.sys enable_wineusb0_sys
+ wine_fn_config_makefile dlls/winevulkan enable_winevulkan
+ wine_fn_config_makefile dlls/winewayland.drv enable_winewayland_drv
+ wine_fn_config_makefile dlls/winex11.drv enable_winex11_drv
 diff --git a/configure.ac b/configure.ac
-index f1fccbd25d9..4a57775fbc1 100644
+index f1fccbd25d9..3e47b056a7d 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -3325,6 +3325,7 @@ WINE_CONFIG_MAKEFILE(dlls/wineps.drv)
+@@ -1586,6 +1586,7 @@ fi
+ WINE_NOTICE_WITH(usb,[test "$ac_cv_func_libusb_interrupt_event_handler" != "yes"],
+                  [libusb-1.0 ${notice_platform}development files not found (or too old), USB devices won't be supported.],
+                  [enable_wineusb_sys])
++test "$ac_cv_func_libusb_interrupt_event_handler" = "yes" || enable_wineusb0_sys=${enable_wineusb0_sys:-no}
+ 
+ dnl **** Check for libv4l2 ****
+ if test "x$with_v4l2" != "xno"
+@@ -3325,6 +3326,7 @@ WINE_CONFIG_MAKEFILE(dlls/wineps.drv)
  WINE_CONFIG_MAKEFILE(dlls/wineps16.drv16)
  WINE_CONFIG_MAKEFILE(dlls/winepulse.drv)
  WINE_CONFIG_MAKEFILE(dlls/wineusb.sys)

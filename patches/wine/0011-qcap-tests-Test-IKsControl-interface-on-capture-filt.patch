@@ -1,7 +1,7 @@
-From e79d9661d85766cb69e2057df40e7baec0106326 Mon Sep 17 00:00:00 2001
+From 05f2d001095acfaeb337c5c1694cfa6bc78bfece Mon Sep 17 00:00:00 2001
 From: Peter Stewart <peter@stewartmail.xyz>
 Date: Sat, 21 Feb 2026 20:57:21 +1100
-Subject: [PATCH 11/13] qcap/tests: Test IKsControl interface on capture
+Subject: [PATCH 11/14] qcap/tests: Test IKsControl interface on capture
  filter.
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
