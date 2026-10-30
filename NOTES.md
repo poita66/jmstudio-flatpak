@@ -216,6 +216,34 @@ Logic `05e3:0610` hub (or that port's wiring), not from the scanner, uvcvideo or
 that connects the scanner without that hub. Windows was presumably clean because its USB path
 differed; not checked.
 
+### Occasional "failed to connect": USB autosuspend **[usb]**, 2026-10-30
+
+Symptom **[user]**: the first connect after the scanner has been idle sometimes fails; a retry
+works.
+
+- JM Studio's log for a failure (Flatpak, 2.6.17): "Start preview" at 12:20:58.264, then the
+  SLAM and frame-processing threads stop 496 ms later, before any camera error; the grab threads
+  end and it reports `disconnected`. Wine stderr (`err+all,warn+qcap`) and the libv4l2 log show
+  both streams started (S_FMT MJPG to BGR24, buffers mapped, controls set) with no read or decode
+  error, and JM Studio then closed both devices. So JM Studio gives up waiting for the first
+  frame after roughly 500 ms **[inferred]**.
+- The cameras are under USB runtime autosuspend (`power/control=auto`, 2 s delay). Measured with
+  `tools/qcap_read_test.py` (qcap's exact libv4l2 calls, inside the Flatpak), open to first frame:
+  - after >2 s idle, autosuspend on: 514-537 ms (8 of 8 starts over 500 ms)
+  - warm (back-to-back starts): ~365 ms
+  - after 5 s idle, autosuspend off (`power/control=on`): 391-395 ms
+- So a start from suspend misses JM Studio's window by 15-40 ms; the retry finds the camera
+  awake. Fix: keep the scanner's cameras out of autosuspend with a host udev rule (a Flatpak
+  cannot set this):
+
+  ```
+  # /etc/udev/rules.d/99-creality-scanner.rules
+  ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="bcdc", TEST=="power/control", ATTR{power/control}="on"
+  ```
+- Earlier failures in `logs/wine-11.3-host/` share the shape (grab threads ending ~0.5 s after
+  start); some on 2026-10-29 were also on the hub port with `-EPROTO` packet loss, or while
+  another process held CameraB ("Open Camera failed").
+
 ### Driving the GUI
 
 `ydotool` moves the pointer (after `mousemove -a -x 0 -y 0`, one relative unit = 2 logical px at
