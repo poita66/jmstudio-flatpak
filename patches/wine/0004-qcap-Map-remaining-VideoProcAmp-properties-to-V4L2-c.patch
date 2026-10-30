@@ -1,0 +1,38 @@
+From f3af91d50c39a18b62d64af8cb75fcc446959b46 Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Sat, 21 Feb 2026 12:52:17 +1100
+Subject: [PATCH 04/13] qcap: Map remaining VideoProcAmp properties to V4L2
+ controls.
+
+Add V4L2 control mappings for Sharpness, Gamma, WhiteBalance,
+BacklightCompensation, and Gain. Previously only Brightness, Contrast,
+Hue, and Saturation were mapped, causing other properties to fail with
+E_PROP_ID_UNSUPPORTED.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+(cherry picked from commit dc728fbc5799f144439f799d211f4761f7ef8127)
+---
+ dlls/qcap/v4l.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/dlls/qcap/v4l.c b/dlls/qcap/v4l.c
+index a963372b7bf..8ae974b9333 100644
+--- a/dlls/qcap/v4l.c
++++ b/dlls/qcap/v4l.c
+@@ -266,6 +266,16 @@ static __u32 v4l2_cid_from_qcap_property(VideoProcAmpProperty property)
+         return V4L2_CID_HUE;
+     case VideoProcAmp_Saturation:
+         return V4L2_CID_SATURATION;
++    case VideoProcAmp_Sharpness:
++        return V4L2_CID_SHARPNESS;
++    case VideoProcAmp_Gamma:
++        return V4L2_CID_GAMMA;
++    case VideoProcAmp_WhiteBalance:
++        return V4L2_CID_WHITE_BALANCE_TEMPERATURE;
++    case VideoProcAmp_BacklightCompensation:
++        return V4L2_CID_BACKLIGHT_COMPENSATION;
++    case VideoProcAmp_Gain:
++        return V4L2_CID_GAIN;
+     default:
+         FIXME("Unhandled property %d.\n", property);
+         return 0;

@@ -1,0 +1,24 @@
+From ba5a5ce3e7572746f80db4473c49f776f2d94db6 Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Sat, 21 Feb 2026 20:56:55 +1100
+Subject: [PATCH 06/13] qcap/tests: Test IAMCameraControl interface on capture
+ filter.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+(cherry picked from commit c4644ccae41c5a9cad192ff5d34abdca7f36b363)
+---
+ dlls/qcap/tests/videocapture.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/dlls/qcap/tests/videocapture.c b/dlls/qcap/tests/videocapture.c
+index 13fd45b618c..5e5dbfe1231 100644
+--- a/dlls/qcap/tests/videocapture.c
++++ b/dlls/qcap/tests/videocapture.c
+@@ -389,6 +389,7 @@ static void test_pins(IBaseFilter *filter)
+ static void test_filter_interfaces(IBaseFilter *filter)
+ {
+     check_interface(filter, &IID_IAMFilterMiscFlags, TRUE);
++    check_interface(filter, &IID_IAMCameraControl, TRUE);
+     check_interface(filter, &IID_IAMVideoControl, TRUE);
+     check_interface(filter, &IID_IAMVideoProcAmp, TRUE);
+     check_interface(filter, &IID_IBaseFilter, TRUE);

@@ -1,0 +1,47 @@
+From 2fde9ae5a9ab5f4ea5d797169706d3229fafe854 Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Sat, 21 Feb 2026 10:45:58 +1100
+Subject: [PATCH 01/13] vcomp: Handle 0x20 (runtime) flag in
+ _vcomp_for_dynamic_init.
+
+MSVC's schedule(runtime) resolved to dynamic/chunked passes flags with
+the 0x20 bit set (e.g. flags=98 = 0x40|0x20|0x02). Without masking this
+bit, the schedule type falls through to GUIDED instead of the correct
+CHUNKED, causing incorrect thread work distribution.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+(cherry picked from commit 160ec230c8d1776b93192cbbcbef536513df5340)
+---
+ dlls/vcomp/main.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/vcomp/main.c b/dlls/vcomp/main.c
+index 6a12da8d458..06965728e6d 100644
+--- a/dlls/vcomp/main.c
++++ b/dlls/vcomp/main.c
+@@ -58,6 +58,7 @@ static RTL_CRITICAL_SECTION vcomp_section = { &critsect_debug, -1, 0, 0, 0, 0 };
+ #define VCOMP_DYNAMIC_FLAGS_STATIC      0x01
+ #define VCOMP_DYNAMIC_FLAGS_CHUNKED     0x02
+ #define VCOMP_DYNAMIC_FLAGS_GUIDED      0x03
++#define VCOMP_DYNAMIC_FLAGS_RUNTIME     0x20
+ #define VCOMP_DYNAMIC_FLAGS_INCREMENT   0x40
+ 
+ struct vcomp_thread_data
+@@ -1279,7 +1280,7 @@ void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsig
+     struct vcomp_task_data *task_data = thread_data->task;
+     int num_threads = team_data ? team_data->num_threads : 1;
+     int thread_num = thread_data->thread_num;
+-    unsigned int type = flags & ~VCOMP_DYNAMIC_FLAGS_INCREMENT;
++    unsigned int type = flags & ~(VCOMP_DYNAMIC_FLAGS_INCREMENT | VCOMP_DYNAMIC_FLAGS_RUNTIME);
+ 
+     TRACE("(%u, %u, %u, %d, %u)\n", flags, first, last, step, chunksize);
+ 
+@@ -1321,7 +1322,7 @@ void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsig
+         if (type != VCOMP_DYNAMIC_FLAGS_CHUNKED &&
+             type != VCOMP_DYNAMIC_FLAGS_GUIDED)
+         {
+-            FIXME("unsupported flags %u\n", flags);
++            FIXME("unsupported schedule type %#x (flags %u)\n", type, flags);
+             type = VCOMP_DYNAMIC_FLAGS_GUIDED;
+         }
+ 

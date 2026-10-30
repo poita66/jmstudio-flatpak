@@ -1,0 +1,84 @@
+app-id: io.github.poita66.jmstudio
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.mingw-w64
+command: jmstudio
+
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  # Login and per-scanner calibration download from the vendor server.
+  - --share=network
+  # The scanner's cameras (/dev/video*) and, for libusb-based models, /dev/bus/usb.
+  - --device=all
+  # First run looks for the JM Studio installer here.
+  - --filesystem=xdg-download:ro
+  # Lets 32-bit Windows code set up LDT segments (modify_ldt). Without it wineboot leaves
+  # syswow64 empty and 32-bit programs, including JM Studio's installer, cannot start.
+  - --allow=multiarch
+  - --env=WINEDEBUG=-all
+
+modules:
+  - name: wine
+    buildsystem: autotools
+    build-options:
+      append-path: /usr/lib/sdk/mingw-w64/bin
+    config-opts:
+      # WoW64: one 64-bit Unix build that also runs 32-bit Windows code (JM Studio's
+      # installer is 32-bit), so no 32-bit runtime is needed.
+      - --enable-archs=i386,x86_64
+      - --disable-tests
+      - --with-x
+      - --without-capi
+      - --without-gphoto
+      - --without-gstreamer
+      - --without-oss
+      - --without-sane
+      - --without-krb5
+    make-install-args:
+      - LDCONFIG=/bin/true
+    cleanup:
+      - /include
+      - /share/man
+    sources:
+      # Upstream release, signed by Alexandre Julliard (DA23579A74D4AD9AF9D3F945CEFAC8EAAF17519D).
+      - type: archive
+        url: https://dl.winehq.org/wine/source/11.x/wine-11.20.tar.xz
+        sha256: eac8ca448f9c0087f963026b4dc276d1e2b7fbb64056edc093e59bbb7e56fe28
+      # Every change to upstream Wine; exported from poita66/wine with git format-patch.
+      - type: patch
+        paths:
+          - patches/wine/0001-vcomp-Handle-0x20-runtime-flag-in-_vcomp_for_dynamic.patch
+          - patches/wine/0002-vcomp-tests-Test-runtime-flag-0x20-in-_vcomp_for_dyn.patch
+          - patches/wine/0003-mfreadwrite-Return-E_INVALIDARG-for-NULL-source-in-M.patch
+          - patches/wine/0004-qcap-Map-remaining-VideoProcAmp-properties-to-V4L2-c.patch
+          - patches/wine/0005-qcap-Implement-IAMCameraControl-interface-for-V4L2-c.patch
+          - patches/wine/0006-qcap-tests-Test-IAMCameraControl-interface-on-captur.patch
+          - patches/wine/0007-avicap32-Read-USB-VID-PID-from-sysfs-for-video-captu.patch
+          - patches/wine/0008-devenum-Use-USB-device-path-format-in-video-capture-.patch
+          - patches/wine/0009-wineusb0.sys-Add-generic-libusb-win32-compatibility-.patch
+          - patches/wine/0010-qcap-Add-IKsControl-interface-with-UVC-extension-uni.patch
+          - patches/wine/0011-qcap-tests-Test-IKsControl-interface-on-capture-filt.patch
+          - patches/wine/0012-mf-Implement-MFEnumDeviceSources-for-video-capture-d.patch
+          - patches/wine/0013-mf-tests-Test-MFEnumDeviceSources-with-video-capture.patch
+      # The patches touch configure.ac (new wineusb0.sys module) but not the generated
+      # configure script, so regenerate it from the patched configure.ac.
+      - type: shell
+        commands:
+          - autoconf
+
+  - name: jmstudio
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 jmstudio.sh /app/bin/jmstudio
+      - install -Dm644 io.github.poita66.jmstudio.desktop /app/share/applications/io.github.poita66.jmstudio.desktop
+      - install -Dm644 io.github.poita66.jmstudio.png /app/share/icons/hicolor/256x256/apps/io.github.poita66.jmstudio.png
+    sources:
+      - type: file
+        path: jmstudio.sh
+      - type: file
+        path: io.github.poita66.jmstudio.desktop
+      - type: file
+        path: io.github.poita66.jmstudio.png

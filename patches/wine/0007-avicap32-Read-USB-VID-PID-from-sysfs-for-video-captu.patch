@@ -1,0 +1,112 @@
+From 5302010c66f8b62c5723c14f9d98734ef12f2007 Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Sat, 21 Feb 2026 18:15:11 +1100
+Subject: [PATCH 07/13] avicap32: Read USB VID/PID from sysfs for video capture
+ devices.
+
+Add usb_vid and usb_pid fields to the device descriptor struct and
+read them from /sys/class/video4linux/videoN/device/../idVendor and
+idProduct. Export wine_capGetDeviceUsbIds() so other modules can
+query the USB identity of capture devices.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+(cherry picked from commit 6a08c5d8bfa73dd68a2d61f621a3ffe79c6108fe)
+---
+ dlls/avicap32/avicap32.spec   |  1 +
+ dlls/avicap32/avicap32_main.c | 17 +++++++++++++++++
+ dlls/avicap32/unixlib.h       |  2 ++
+ dlls/avicap32/v4l.c           | 23 +++++++++++++++++++++++
+ 4 files changed, 43 insertions(+)
+
+diff --git a/dlls/avicap32/avicap32.spec b/dlls/avicap32/avicap32.spec
+index 2c94a9fd247..8c9bffda2b8 100644
+--- a/dlls/avicap32/avicap32.spec
++++ b/dlls/avicap32/avicap32.spec
+@@ -2,3 +2,4 @@
+ @ stdcall capCreateCaptureWindowW(wstr long long long long long long long)
+ @ stdcall capGetDriverDescriptionA(long ptr long ptr long)
+ @ stdcall capGetDriverDescriptionW(long ptr long ptr long)
++@ stdcall wine_capGetDeviceUsbIds(long ptr ptr)
+diff --git a/dlls/avicap32/avicap32_main.c b/dlls/avicap32/avicap32_main.c
+index 641e3896027..78ec72d9e9f 100644
+--- a/dlls/avicap32/avicap32_main.c
++++ b/dlls/avicap32/avicap32_main.c
+@@ -132,6 +132,23 @@ BOOL VFWAPI capGetDriverDescriptionW(WORD index, WCHAR *name, int name_len, WCHA
+     return TRUE;
+ }
+ 
++/***********************************************************************
++ *             wine_capGetDeviceUsbIds   (AVICAP32.@)
++ *
++ * Wine-internal function to retrieve USB VID/PID for a video capture device.
++ */
++BOOL VFWAPI wine_capGetDeviceUsbIds(WORD index, unsigned short *vid, unsigned short *pid)
++{
++    struct get_device_desc_params params;
++
++    params.index = index;
++    if (WINE_UNIX_CALL(unix_get_device_desc, &params)) return FALSE;
++
++    if (vid) *vid = params.usb_vid;
++    if (pid) *pid = params.usb_pid;
++    return TRUE;
++}
++
+ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
+ {
+     switch (reason)
+diff --git a/dlls/avicap32/unixlib.h b/dlls/avicap32/unixlib.h
+index 89ef1cc93f9..709b4e9419e 100644
+--- a/dlls/avicap32/unixlib.h
++++ b/dlls/avicap32/unixlib.h
+@@ -25,6 +25,8 @@ struct get_device_desc_params
+     WORD index;
+     WCHAR name[CAP_DESC_MAX];
+     WCHAR version[CAP_DESC_MAX];
++    unsigned short usb_vid;
++    unsigned short usb_pid;
+ };
+ 
+ enum unix_funcs
+diff --git a/dlls/avicap32/v4l.c b/dlls/avicap32/v4l.c
+index 8cabe51248a..99fed057dd9 100644
+--- a/dlls/avicap32/v4l.c
++++ b/dlls/avicap32/v4l.c
+@@ -104,7 +104,10 @@ static NTSTATUS get_device_desc(void *args)
+         if (is_capture_device)
+         {
+             char version[CAP_DESC_MAX];
++            char sysfs_path[64];
+             int ret;
++            unsigned int val;
++            FILE *f;
+ 
+             v4l_umbstowcs((char *)caps.card, strlen((char *)caps.card),
+                     params->name, ARRAY_SIZE(params->name));
+@@ -112,6 +115,26 @@ static NTSTATUS get_device_desc(void *args)
+             ret = snprintf(version, ARRAY_SIZE(version), "%s v%u.%u.%u", (char *)caps.driver,
+                     (caps.version >> 16) & 0xff, (caps.version >> 8) & 0xff, caps.version & 0xff);
+             v4l_umbstowcs(version, ret, params->version, ARRAY_SIZE(params->version));
++
++            /* Read USB VID/PID from sysfs. */
++            params->usb_vid = 0;
++            params->usb_pid = 0;
++            snprintf(sysfs_path, sizeof(sysfs_path),
++                    "/sys/class/video4linux/video%u/device/../idVendor", params->index);
++            if ((f = fopen(sysfs_path, "r")))
++            {
++                if (fscanf(f, "%x", &val) == 1)
++                    params->usb_vid = val;
++                fclose(f);
++            }
++            snprintf(sysfs_path, sizeof(sysfs_path),
++                    "/sys/class/video4linux/video%u/device/../idProduct", params->index);
++            if ((f = fopen(sysfs_path, "r")))
++            {
++                if (fscanf(f, "%x", &val) == 1)
++                    params->usb_pid = val;
++                fclose(f);
++            }
+         }
+         close(fd);
+         return is_capture_device ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;

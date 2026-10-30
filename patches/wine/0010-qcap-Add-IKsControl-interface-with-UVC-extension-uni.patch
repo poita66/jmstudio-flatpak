@@ -1,0 +1,261 @@
+From 23b822b27f1532705aaaf7d25c2a6e1ac71361ea Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Sat, 21 Feb 2026 15:11:33 +1100
+Subject: [PATCH 10/13] qcap: Add IKsControl interface with UVC extension unit
+ passthrough.
+
+Implement IKsControl on the VFW capture filter, forwarding
+KSPROPERTY_TYPE_TOPOLOGY property requests to the underlying V4L2
+device via UVCIOC_CTRL_QUERY. This allows camera SDKs that use UVC
+extension units (e.g. for vendor-specific controls) to communicate
+with the hardware through DirectShow capture filters.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+(cherry picked from commit fbfdb70be0407bb9a8227f31af7548c1a0c8c80d)
+---
+ dlls/qcap/qcap_private.h |  12 +++++
+ dlls/qcap/v4l.c          |  37 ++++++++++++++
+ dlls/qcap/vfwcapture.c   | 105 +++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 154 insertions(+)
+
+diff --git a/dlls/qcap/qcap_private.h b/dlls/qcap/qcap_private.h
+index 720e46eff2d..428c9a1b896 100644
+--- a/dlls/qcap/qcap_private.h
++++ b/dlls/qcap/qcap_private.h
+@@ -166,6 +166,17 @@ struct set_camera_control_params
+     LONG                         value;
+     LONG                         flags;
+ };
++
++struct xu_control_params
++{
++    video_capture_device_t       device;
++    unsigned char                unit;
++    unsigned char                selector;
++    unsigned char                query;     /* UVC_SET_CUR=1, UVC_GET_CUR=0x81 */
++    unsigned short               size;
++    void                        *data;
++};
++
+ enum unix_funcs
+ {
+     unix_create,
+@@ -185,6 +196,7 @@ enum unix_funcs
+     unix_get_camera_control_range,
+     unix_get_camera_control,
+     unix_set_camera_control,
++    unix_xu_control,
+     unix_funcs_count
+ };
+ 
+diff --git a/dlls/qcap/v4l.c b/dlls/qcap/v4l.c
+index ba4bb47cca6..6fcc84b917f 100644
+--- a/dlls/qcap/v4l.c
++++ b/dlls/qcap/v4l.c
+@@ -783,6 +783,41 @@ static NTSTATUS v4l_device_destroy( void *args )
+     return S_OK;
+ }
+ 
++/* UVC extension unit control query via UVCIOC_CTRL_QUERY */
++struct uvc_xu_control_query {
++    __u8 unit;
++    __u8 selector;
++    __u8 query;         /* UVC_SET_CUR=0x01, UVC_GET_CUR=0x81 */
++    __u16 size;
++    __u8 *data;
++};
++#define UVCIOC_CTRL_QUERY _IOWR('u', 0x21, struct uvc_xu_control_query)
++
++static NTSTATUS v4l_xu_control( void *args )
++{
++    const struct xu_control_params *params = args;
++    struct video_capture_device *device = get_device(params->device);
++    struct uvc_xu_control_query xu;
++
++    xu.unit = params->unit;
++    xu.selector = params->selector;
++    xu.query = params->query;
++    xu.size = params->size;
++    xu.data = params->data;
++
++    TRACE("device %p, unit %u, selector %u, query %#x, size %u.\n",
++            device, xu.unit, xu.selector, xu.query, xu.size);
++
++    /* Use raw ioctl, not v4l2_ioctl, since UVCIOC_CTRL_QUERY is not a V4L2 ioctl. */
++    if (ioctl(device->fd, UVCIOC_CTRL_QUERY, &xu) == -1)
++    {
++        WARN("UVCIOC_CTRL_QUERY failed: %s\n", strerror(errno));
++        return E_FAIL;
++    }
++
++    return S_OK;
++}
++
+ const unixlib_entry_t __wine_unix_call_funcs[] =
+ {
+     v4l_device_create,
+@@ -802,6 +837,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
+     v4l_device_get_camera_control_range,
+     v4l_device_get_camera_control,
+     v4l_device_set_camera_control,
++    v4l_xu_control,
+ };
+ 
+ C_ASSERT( ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count );
+@@ -1098,6 +1134,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
+     v4l_device_get_camera_control_range,
+     v4l_device_get_camera_control,
+     v4l_device_set_camera_control,
++    v4l_xu_control,
+ };
+ 
+ C_ASSERT( ARRAYSIZE(__wine_unix_call_wow64_funcs) == unix_funcs_count );
+diff --git a/dlls/qcap/vfwcapture.c b/dlls/qcap/vfwcapture.c
+index 1ff3591b003..8ec9b757a86 100644
+--- a/dlls/qcap/vfwcapture.c
++++ b/dlls/qcap/vfwcapture.c
+@@ -20,11 +20,20 @@
+ 
+ #include "qcap_private.h"
+ #include "winternl.h"
++#include "initguid.h"
++#include "dmksctrl.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(quartz);
+ 
+ #define V4L_CALL( func, params ) WINE_UNIX_CALL( unix_ ## func, params )
+ 
++/* KSP_NODE is not yet defined in Wine headers. */
++typedef struct {
++    KSPROPERTY Property;
++    ULONG NodeId;
++    ULONG Reserved;
++} KSP_NODE;
++
+ struct vfw_capture
+ {
+     struct strmbase_filter filter;
+@@ -34,6 +43,7 @@ struct vfw_capture
+     IAMCameraControl IAMCameraControl_iface;
+     IAMFilterMiscFlags IAMFilterMiscFlags_iface;
+     IPersistPropertyBag IPersistPropertyBag_iface;
++    IKsControl IKsControl_iface;
+     BOOL init;
+ 
+     struct strmbase_source source;
+@@ -132,6 +142,8 @@ static HRESULT vfw_capture_query_interface(struct strmbase_filter *iface, REFIID
+         *out = &filter->IAMCameraControl_iface;
+     else if (IsEqualGUID(iid, &IID_IAMFilterMiscFlags))
+         *out = &filter->IAMFilterMiscFlags_iface;
++    else if (IsEqualGUID(iid, &IID_IKsControl))
++        *out = &filter->IKsControl_iface;
+     else
+         return E_NOINTERFACE;
+ 
+@@ -969,6 +981,98 @@ static const IAMVideoControlVtbl IAMVideoControl_VTable =
+     video_control_GetFrameRateList
+ };
+ 
++static inline struct vfw_capture *impl_from_IKsControl(IKsControl *iface)
++{
++    return CONTAINING_RECORD(iface, struct vfw_capture, IKsControl_iface);
++}
++
++static HRESULT WINAPI ks_control_QueryInterface(IKsControl *iface, REFIID iid, void **out)
++{
++    struct vfw_capture *filter = impl_from_IKsControl(iface);
++    return IUnknown_QueryInterface(filter->filter.outer_unk, iid, out);
++}
++
++static ULONG WINAPI ks_control_AddRef(IKsControl *iface)
++{
++    struct vfw_capture *filter = impl_from_IKsControl(iface);
++    return IUnknown_AddRef(filter->filter.outer_unk);
++}
++
++static ULONG WINAPI ks_control_Release(IKsControl *iface)
++{
++    struct vfw_capture *filter = impl_from_IKsControl(iface);
++    return IUnknown_Release(filter->filter.outer_unk);
++}
++
++static HRESULT WINAPI ks_control_KsProperty(IKsControl *iface, PKSPROPERTY property, ULONG property_len,
++        void *data, ULONG data_len, ULONG *ret_len)
++{
++    struct vfw_capture *filter = impl_from_IKsControl(iface);
++
++    TRACE("iface %p, property %p, property_len %lu, data %p, data_len %lu, ret_len %p, set %s id %lu.\n",
++            iface, property, property_len, data, data_len, ret_len,
++            debugstr_guid(property ? &property->Set : NULL), property ? property->Id : 0);
++
++    /* Forward UVC extension unit queries (KSPROPERTY_TYPE_TOPOLOGY) to V4L2
++     * UVCIOC_CTRL_QUERY.  On Windows, the UVC driver uses KSP_NODE with
++     * KSPROPERTY_TYPE_TOPOLOGY to route requests to specific extension units. */
++    if (property && (property->Flags & KSPROPERTY_TYPE_TOPOLOGY) && property_len >= sizeof(KSP_NODE))
++    {
++        KSP_NODE *node = (KSP_NODE *)property;
++        struct xu_control_params xu_params;
++        HRESULT hr;
++
++        TRACE("Topology property set %s, id %lu, node %lu.\n",
++                debugstr_guid(&property->Set), property->Id, node->NodeId);
++
++        xu_params.device = filter->device;
++        xu_params.unit = node->NodeId + 1;
++        xu_params.selector = property->Id;
++        xu_params.query = (property->Flags & KSPROPERTY_TYPE_SET) ? 0x01 : 0x81;
++        xu_params.size = data_len;
++        xu_params.data = data;
++
++        hr = V4L_CALL(xu_control, &xu_params);
++        if (SUCCEEDED(hr) && ret_len)
++            *ret_len = data_len;
++        else if (ret_len)
++            *ret_len = 0;
++        return hr;
++    }
++
++    FIXME("Unhandled property set %s id %lu flags %#lx.\n",
++            debugstr_guid(property ? &property->Set : NULL),
++            property ? property->Id : 0, property ? property->Flags : 0);
++    if (ret_len) *ret_len = 0;
++    return HRESULT_FROM_WIN32(ERROR_SET_NOT_FOUND);
++}
++
++static HRESULT WINAPI ks_control_KsMethod(IKsControl *iface, PKSMETHOD method, ULONG method_len,
++        void *data, ULONG data_len, ULONG *ret_len)
++{
++    FIXME("iface %p, method %p, method_len %lu, data %p, data_len %lu, ret_len %p stub!\n",
++            iface, method, method_len, data, data_len, ret_len);
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI ks_control_KsEvent(IKsControl *iface, PKSEVENT event, ULONG event_len,
++        void *data, ULONG data_len, ULONG *ret_len)
++{
++    FIXME("iface %p, event %p, event_len %lu, data %p, data_len %lu, ret_len %p stub!\n",
++            iface, event, event_len, data, data_len, ret_len);
++    return E_NOTIMPL;
++}
++
++static const IKsControlVtbl ks_control_vtbl =
++{
++    ks_control_QueryInterface,
++    ks_control_AddRef,
++    ks_control_Release,
++    ks_control_KsProperty,
++    ks_control_KsMethod,
++    ks_control_KsEvent,
++};
++
+ static BOOL WINAPI load_capture_funcs(INIT_ONCE *once, void *param, void **context)
+ {
+     __wine_init_unix_call();
+@@ -995,6 +1099,7 @@ HRESULT vfw_capture_create(IUnknown *outer, IUnknown **out)
+     object->IAMCameraControl_iface.lpVtbl = &IAMCameraControl_VTable;
+     object->IAMFilterMiscFlags_iface.lpVtbl = &IAMFilterMiscFlags_VTable;
+     object->IPersistPropertyBag_iface.lpVtbl = &IPersistPropertyBag_VTable;
++    object->IKsControl_iface.lpVtbl = &ks_control_vtbl;
+ 
+     strmbase_source_init(&object->source, &object->filter, L"Output", &source_ops);
+ 

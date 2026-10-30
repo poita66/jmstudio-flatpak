@@ -1,0 +1,33 @@
+From e79d9661d85766cb69e2057df40e7baec0106326 Mon Sep 17 00:00:00 2001
+From: Peter Stewart <peter@stewartmail.xyz>
+Date: Sat, 21 Feb 2026 20:57:21 +1100
+Subject: [PATCH 11/13] qcap/tests: Test IKsControl interface on capture
+ filter.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+(cherry picked from commit 221f142541a655c74e095f02ac8a70994bc2eda4)
+---
+ dlls/qcap/tests/videocapture.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/dlls/qcap/tests/videocapture.c b/dlls/qcap/tests/videocapture.c
+index 5e5dbfe1231..a0c32d29186 100644
+--- a/dlls/qcap/tests/videocapture.c
++++ b/dlls/qcap/tests/videocapture.c
+@@ -23,6 +23,8 @@
+ #include "dshow.h"
+ #include "wine/test.h"
+ #include "wine/strmbase.h"
++#include "initguid.h"
++#include "dmksctrl.h"
+ 
+ static BOOL compare_media_types(const AM_MEDIA_TYPE *a, const AM_MEDIA_TYPE *b)
+ {
+@@ -393,6 +395,7 @@ static void test_filter_interfaces(IBaseFilter *filter)
+     check_interface(filter, &IID_IAMVideoControl, TRUE);
+     check_interface(filter, &IID_IAMVideoProcAmp, TRUE);
+     check_interface(filter, &IID_IBaseFilter, TRUE);
++    check_interface(filter, &IID_IKsControl, TRUE);
+     todo_wine check_interface(filter, &IID_IKsPropertySet, TRUE);
+     todo_wine check_interface(filter, &IID_IMediaSeeking, TRUE);
+     check_interface(filter, &IID_IPersistPropertyBag, TRUE);

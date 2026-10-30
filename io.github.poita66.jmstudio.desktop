@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=JM Studio
+Comment=3D scanner software for 3DMakerPro and Creality CR-Scan Lizard scanners (Wine)
+Exec=jmstudio
+Icon=io.github.poita66.jmstudio
+Type=Application
+Categories=Graphics;3DGraphics;Engineering;
+StartupWMClass=jmstudio.exe
