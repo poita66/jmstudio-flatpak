@@ -8,8 +8,9 @@
 set -eu
 
 export WINEPREFIX="${XDG_DATA_HOME:-$HOME/.local/share}/prefix"
-# JM Studio is native Qt/C++; skip the Mono and Gecko install prompts on prefix creation.
-export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=}"
+# Wine Mono ships in the Flatpak (JM Studio needs .NET); skip the Gecko (HTML engine) download
+# prompt on prefix creation.
+export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mshtml=}"
 launch="$WINEPREFIX/drive_c/Program Files (x86)/JMStudio/Launch.exe"
 download_url="https://forum.jimumeta.com/home/help/download.html"
 

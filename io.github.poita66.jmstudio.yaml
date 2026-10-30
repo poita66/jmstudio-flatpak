@@ -69,6 +69,20 @@ modules:
         commands:
           - autoconf
 
+  # .NET for Wine: JM Studio's HCamera_x64.dll is a mixed-mode (C++/CLI) assembly that
+  # imports mscoree.dll. Wine 11.20 expects Wine Mono 11.3.0 (WINE_MONO_VERSION) and uses an
+  # unpacked copy under share/wine/mono without prompting to download one.
+  - name: wine-mono
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/share/wine/mono/wine-mono-11.3.0
+      - cp -a . /app/share/wine/mono/wine-mono-11.3.0/
+    sources:
+      # sha256 matches both dl.winehq.org and the GitHub release asset digest.
+      - type: archive
+        url: https://github.com/wine-mono/wine-mono/releases/download/wine-mono-11.3.0/wine-mono-11.3.0-x86.tar.xz
+        sha256: 54a1b0111c3fe4b785eae688af94d27e64995707ad648b6fee8000381b80d298
+
   - name: jmstudio
     buildsystem: simple
     build-commands:
