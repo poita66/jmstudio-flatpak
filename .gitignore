@@ -2,3 +2,5 @@ build-dir/
 .flatpak-builder/
 repo/
 __pycache__/
+calibration/
+logs/

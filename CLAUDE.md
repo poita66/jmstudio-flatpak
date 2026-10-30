@@ -33,8 +33,9 @@ flatpak run io.github.poita66.jmstudio
 - `tools/` - stdlib Python: native V4L2 capture (`lizard_capture.py`), usbmon readers, and
   `qcap_read_test.py` (Wine qcap's libv4l2 read path; run it inside the Flatpak from
   `~/.var/app/io.github.poita66.jmstudio/data/`, the sandbox cannot see the repo).
-- `calibration/` - per-scanner calibration downloaded by JM Studio (byte-exact, `-text`).
-- `logs/` - JM Studio logs from earlier installs, account email redacted.
+- `calibration/`, `logs/` - local only (gitignored): the scanner's vendor calibration and JM Studio
+  logs from earlier installs. They identify the scanner (serial), so they stay out of the public
+  repo; NOTES.md writes the serial as `CRSLnnnnnnn`.
 
 ## Conventions
 

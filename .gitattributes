@@ -1,2 +1,0 @@
-# Vendor calibration files: keep exact bytes (mixed CRLF/CR line endings)
-calibration/*.txt -text
